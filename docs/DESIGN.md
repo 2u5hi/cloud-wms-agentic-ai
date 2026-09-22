@@ -190,7 +190,7 @@ in practice: consultants configure rules, and extensions are for what configurat
 | Layer | Choice | Why |
 |---|---|---|
 | Core service | **Java 21 + Spring Boot 4** (Maven) | Matches Manhattan's Java/Spring stack. Virtual threads mean plain blocking code with no async complexity |
-| Persistence | **Spring Data JPA** for aggregates + `JdbcTemplate` for locking-sensitive queries | JPA is standard in Spring shops. Raw SQL keeps `FOR UPDATE SKIP LOCKED` explicit |
+| Persistence | **Spring `JdbcClient`** with explicit SQL, no ORM | Locking (`FOR UPDATE`, `SKIP LOCKED`), lock order, and every write are visible in the code; nothing is flushed or lazily loaded behind your back |
 | Migrations | **Flyway** (plain `.sql`) | |
 | Database | **MySQL 8** (InnoDB) | Same engine as Manhattan's Cloud SQL. Supports `SKIP LOCKED`, `JSON`, `CHECK` constraints |
 | Messaging | **Google Pub/Sub** (emulator locally), `spring-cloud-gcp-starter-pubsub` in Java, `google-cloud-pubsub` in Python | Same client libraries against the emulator and real Pub/Sub |
@@ -710,6 +710,7 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 | Database | MySQL 8 | Manhattan's published choice (Cloud SQL for MySQL); familiar; has `SKIP LOCKED`, `JSON`, `CHECK` |
 | Messaging | Google Pub/Sub (emulator locally) | Manhattan's published choice; free locally; same client code as production |
 | Runtime | Docker Compose → kind → optional GKE | Free; the same images and manifests would run on GKE |
+| Persistence | `JdbcClient`, explicit SQL | Concurrency-heavy domain: row locks and lock ordering must be visible and reviewable. JPA considered and not used |
 | Auth | Keycloak | Standard OAuth2/OIDC without hand-rolling a token server |
 | Service split | Core / agent / simulators / web | Boundaries follow security and external-system lines, not tables |
 | LLM | Ollama for development; Anthropic for demos and evals | Free iteration; cost limited to demo and eval runs |
