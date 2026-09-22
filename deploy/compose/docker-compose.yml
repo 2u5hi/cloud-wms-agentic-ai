@@ -8,7 +8,9 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    command: ["--default-time-zone=+00:00"]
+    # log-bin-trust-function-creators lets the app user create triggers while binary logging is on
+    # (MySQL 8.4 default). Cloud SQL needs the same flag. Keep in sync with TestcontainersConfiguration.
+    command: ["--default-time-zone=+00:00", "--log-bin-trust-function-creators=1"]
     ports:
       - "${MYSQL_PORT:-3307}:3306"
     volumes:

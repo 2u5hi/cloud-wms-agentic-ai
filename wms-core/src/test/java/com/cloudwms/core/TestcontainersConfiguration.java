@@ -9,11 +9,12 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
-	// Keep in sync with deploy/compose/docker-compose.yml
+	// Image and server flags must match deploy/compose/docker-compose.yml
 	@Bean
 	@ServiceConnection
 	MySQLContainer mysqlContainer() {
-		return new MySQLContainer(DockerImageName.parse("mysql:8.4.11"));
+		return new MySQLContainer(DockerImageName.parse("mysql:8.4.11"))
+			.withCommand("--default-time-zone=+00:00", "--log-bin-trust-function-creators=1");
 	}
 
 }

@@ -8,12 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.cloudwms.core.TestcontainersConfiguration;
+import com.cloudwms.core.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -21,9 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * clients are generated from, so an API change without a contract update fails the build.
  * Regenerate with: ./mvnw test -Dopenapi.update=true
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class OpenApiContractTest {
 
 	private static final Path CONTRACT = Path.of("..", "contracts", "openapi.yaml");
