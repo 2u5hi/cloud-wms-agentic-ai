@@ -4,7 +4,7 @@ A cloud-based warehouse management system with an AI operations agent built in. 
 
 Independent learning project, modeled on publicly documented WMS concepts. Not affiliated with any vendor.
 
-**Status:** in design. See [docs/DESIGN.md](docs/DESIGN.md).
+**Status:** in development. Inventory core is built; see [docs/DESIGN.md](docs/DESIGN.md) for the plan.
 
 ## Architecture
 
@@ -31,3 +31,23 @@ flowchart LR
 | simulators | Python |
 | web | React, TypeScript, Vite |
 | infra | Docker Compose, Google Pub/Sub emulator, Keycloak, Kubernetes (kind) |
+
+## Run locally
+
+Requires Docker, JDK 21, and Node 24.
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml up -d --wait
+```
+
+```bash
+cd wms-core && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+The `dev` profile seeds a demo warehouse on first start. API docs: http://localhost:8080/swagger-ui/index.html
+
+```bash
+cd web && npm install && npm run dev
+```
+
+Console: http://localhost:5173
