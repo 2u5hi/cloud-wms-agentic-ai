@@ -4,6 +4,12 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3307/wms}
+    username: ${MYSQL_USER:wms}
+    password: ${MYSQL_PASSWORD:wms}
+  flyway:
+    locations: classpath:db/migration
 
 management:
   endpoints:
@@ -12,5 +18,6 @@ management:
         include: health,info
   endpoint:
     health:
+      show-components: always
       probes:
         enabled: true
