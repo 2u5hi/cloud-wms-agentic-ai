@@ -1,7 +1,5 @@
-package com.cloudwms.core.inventory.api;
+package com.cloudwms.core.shared.actor;
 
-import com.cloudwms.core.inventory.domain.Actor;
-import com.cloudwms.core.inventory.domain.ActorType;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,11 +7,11 @@ import org.springframework.stereotype.Component;
  * unauthenticated human; this is the single place that will read the caller from their OAuth token.
  */
 @Component
-class CurrentActor {
+public class CurrentActor {
 
-	static final Actor UNAUTHENTICATED = new Actor(ActorType.HUMAN, "unauthenticated");
+	public static final Actor UNAUTHENTICATED = new Actor(ActorType.HUMAN, "unauthenticated");
 
-	Actor get() {
+	public Actor get() {
 		return UNAUTHENTICATED;
 	}
 

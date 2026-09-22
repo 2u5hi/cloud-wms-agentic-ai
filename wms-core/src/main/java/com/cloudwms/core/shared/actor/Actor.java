@@ -1,4 +1,4 @@
-package com.cloudwms.core.inventory.domain;
+package com.cloudwms.core.shared.actor;
 
 import java.util.Objects;
 

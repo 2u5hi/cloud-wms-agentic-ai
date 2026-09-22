@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.cloudwms.core.IntegrationTest;
-import com.cloudwms.core.inventory.domain.Actor;
-import com.cloudwms.core.inventory.domain.ActorType;
 import com.cloudwms.core.inventory.domain.InventoryMovement;
+import com.cloudwms.core.shared.actor.Actor;
+import com.cloudwms.core.shared.actor.ActorType;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

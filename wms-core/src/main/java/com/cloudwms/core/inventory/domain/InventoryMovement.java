@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import com.cloudwms.core.shared.actor.Actor;
+
 /**
  * One ledger entry: a quantity of a SKU leaving {@code fromLocationId} and/or arriving at
  * {@code toLocationId}. Quantity is always positive; the locations give the direction. This mirrors the

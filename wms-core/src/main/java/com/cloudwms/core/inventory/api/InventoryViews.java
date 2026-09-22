@@ -3,9 +3,9 @@ package com.cloudwms.core.inventory.api;
 import java.time.Instant;
 import java.util.List;
 
-import com.cloudwms.core.inventory.domain.ActorType;
 import com.cloudwms.core.inventory.domain.InventoryTxnType;
 import com.cloudwms.core.inventory.domain.LocationType;
+import com.cloudwms.core.shared.actor.ActorType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Response bodies for inventory. {@code available = onHand - allocated}. */

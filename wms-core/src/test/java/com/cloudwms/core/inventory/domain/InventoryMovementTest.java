@@ -3,6 +3,8 @@ package com.cloudwms.core.inventory.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.cloudwms.core.shared.actor.Actor;
+import com.cloudwms.core.shared.actor.ActorType;
 import org.junit.jupiter.api.Test;
 
 class InventoryMovementTest {

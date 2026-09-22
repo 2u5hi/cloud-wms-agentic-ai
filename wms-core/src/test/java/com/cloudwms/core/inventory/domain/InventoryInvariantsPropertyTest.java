@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.cloudwms.core.shared.actor.Actor;
+import com.cloudwms.core.shared.actor.ActorType;
 import com.cloudwms.core.shared.error.DomainException;
 import com.cloudwms.core.shared.error.ErrorCode;
 import org.junit.jupiter.api.Test;

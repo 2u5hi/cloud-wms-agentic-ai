@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 import com.cloudwms.core.IntegrationTest;
-import com.cloudwms.core.inventory.domain.Actor;
-import com.cloudwms.core.inventory.domain.ActorType;
 import com.cloudwms.core.inventory.domain.InventoryMovement;
+import com.cloudwms.core.shared.actor.Actor;
+import com.cloudwms.core.shared.actor.ActorType;
 import com.cloudwms.core.shared.error.DomainException;
 import com.cloudwms.core.shared.error.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
