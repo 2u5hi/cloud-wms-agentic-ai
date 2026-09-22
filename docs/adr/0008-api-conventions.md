@@ -43,5 +43,6 @@ static HttpStatus statusOf(ErrorCode code) {
 **Input is validated before the domain.** For example, a move to the same location or a zero adjustment returns a 400 naming the field. The domain would reject these too, but with `IllegalArgumentException`, which is reserved for programming bugs and surfaces as a 500.
 
 ## Consequences
+- Lock conflicts return 503 `CONCURRENCY_CONFLICT` with `Retry-After` ([0017](0017-read-committed-and-lock-conflicts.md)).
 - Every failure a client can cause has a machine-readable code. The agent will branch on these.
 - Commands return 201 with a `Location` header pointing at the ledger entry they created.

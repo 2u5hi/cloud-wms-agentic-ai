@@ -17,6 +17,7 @@ public enum ErrorCode {
 	INSUFFICIENT_INVENTORY("Insufficient inventory"),
 	PRECONDITION_FAILED("Precondition failed"),
 	IDEMPOTENCY_KEY_REUSED("Idempotency key reused with a different request"),
+	CONCURRENCY_CONFLICT("Concurrent update conflict; retry the request"),
 	INTERNAL_ERROR("Internal error");
 
 	private final String title;

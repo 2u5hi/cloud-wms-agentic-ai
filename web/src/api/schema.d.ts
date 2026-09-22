@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/integrations/host/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a batch of orders
+         * @description Each order is processed independently and gets its own result: ACCEPTED, DUPLICATE (an order with this external reference already exists and was not changed), or REJECTED with field errors. Returns 200 whenever the batch itself is well formed, even if every order was rejected.
+         */
+        post: operations["importOrders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory": {
         parameters: {
             query?: never;
@@ -158,6 +178,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List orders
+         * @description In the order they were received.
+         */
+        get: operations["listOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{externalRef}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an order with its lines */
+        get: operations["getOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/skus": {
         parameters: {
             query?: never;
@@ -261,6 +318,30 @@ export interface components {
             sku: string;
             zone: string;
         };
+        FieldError: {
+            field: string;
+            message: string;
+        };
+        HostOrder: {
+            carrier: string;
+            /** Format: date-time */
+            carrierCutoffAt: string;
+            customer: string;
+            externalRef: string;
+            lines: components["schemas"]["HostOrderLine"][];
+            /**
+             * Format: int32
+             * @description 1 (most urgent) to 5; defaults to 3
+             */
+            priority?: number | null;
+        };
+        HostOrderLine: {
+            /** Format: int32 */
+            lineNo: number;
+            /** Format: int32 */
+            quantity: number;
+            sku: string;
+        };
         LocationTypeAvailability: {
             /** Format: int32 */
             allocated: number;
@@ -302,6 +383,82 @@ export interface components {
             balances: components["schemas"]["BalanceView"][];
             transaction: components["schemas"]["TransactionView"];
         };
+        OrderImportRequest: {
+            orders: components["schemas"]["HostOrder"][];
+        };
+        OrderImportResponse: {
+            /** Format: int32 */
+            accepted: number;
+            /** Format: int32 */
+            duplicates: number;
+            /** Format: int32 */
+            rejected: number;
+            results: components["schemas"]["OrderResult"][];
+        };
+        OrderLineView: {
+            /** Format: int32 */
+            allocated: number;
+            /** Format: int32 */
+            lineNo: number;
+            /** Format: int32 */
+            ordered: number;
+            /** Format: int32 */
+            picked: number;
+            /** Format: int32 */
+            shipped: number;
+            /** Format: int32 */
+            shortQuantity: number;
+            sku: string;
+        };
+        OrderResult: {
+            errors: components["schemas"]["FieldError"][];
+            /** @description Null only if the order had no reference */
+            externalRef?: string | null;
+            /** @enum {string} */
+            result: "ACCEPTED" | "DUPLICATE" | "REJECTED";
+        };
+        OrderSummaryView: {
+            carrier: string;
+            /** Format: date-time */
+            carrierCutoffAt: string;
+            customer: string;
+            externalRef: string;
+            holdReason?: string | null;
+            /** Format: int32 */
+            lines: number;
+            onHold: boolean;
+            /** Format: int32 */
+            priority: number;
+            /** Format: date-time */
+            receivedAt: string;
+            /**
+             * Format: int32
+             * @description Units ordered but not allocated
+             */
+            shortQuantity: number;
+            /** @enum {string} */
+            status: "RECEIVED" | "ALLOCATED" | "RELEASED" | "PICKING" | "PICKED" | "PACKED" | "SHIPPED" | "CANCELLED";
+            /** Format: int32 */
+            unitsAllocated: number;
+            /** Format: int32 */
+            unitsOrdered: number;
+        };
+        OrderView: {
+            carrier: string;
+            /** Format: date-time */
+            carrierCutoffAt: string;
+            customer: string;
+            externalRef: string;
+            holdReason?: string | null;
+            lines: components["schemas"]["OrderLineView"][];
+            onHold: boolean;
+            /** Format: int32 */
+            priority: number;
+            /** Format: date-time */
+            receivedAt: string;
+            /** @enum {string} */
+            status: "RECEIVED" | "ALLOCATED" | "RELEASED" | "PICKING" | "PICKED" | "PACKED" | "SHIPPED" | "CANCELLED";
+        };
         PageBalanceView: {
             items: components["schemas"]["BalanceView"][];
             /** @description Opaque cursor for the next page; null on the last page */
@@ -309,6 +466,11 @@ export interface components {
         };
         PageLocationView: {
             items: components["schemas"]["LocationView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PageOrderSummaryView: {
+            items: components["schemas"]["OrderSummaryView"][];
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
@@ -400,6 +562,33 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    importOrders: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderImportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OrderImportResponse"];
+                };
+            };
+        };
+    };
     listBalances: {
         parameters: {
             query?: {
@@ -600,6 +789,53 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["LocationView"];
+                };
+            };
+        };
+    };
+    listOrders: {
+        parameters: {
+            query?: {
+                status?: "RECEIVED" | "ALLOCATED" | "RELEASED" | "PICKING" | "PICKED" | "PACKED" | "SHIPPED" | "CANCELLED";
+                onHold?: boolean;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageOrderSummaryView"];
+                };
+            };
+        };
+    };
+    getOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                externalRef: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OrderView"];
                 };
             };
         };

@@ -12,6 +12,9 @@ spring:
       # Fail fast when MySQL is unreachable (Hikari's default is 30s), so requests and the
       # health check report the outage promptly instead of hanging.
       connection-timeout: 5000
+      # READ COMMITTED avoids InnoDB gap locks, which deadlock concurrent inserts of overlapping keys.
+      # Correctness relies on explicit row locks (SELECT ... FOR UPDATE), which behave the same. See ADR 0016.
+      transaction-isolation: TRANSACTION_READ_COMMITTED
   flyway:
     locations: classpath:db/migration
 

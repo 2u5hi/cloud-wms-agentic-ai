@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -43,6 +45,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	ResponseEntity<ProblemDetail> handleUnexpected(Exception ex, HttpServletRequest request) {
+		if (isLockConflict(ex)) {
+			return lockConflict(ex, request);
+		}
 		log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
 		ProblemDetail problem = problem(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred.",
 				request.getRequestURI());
@@ -113,6 +118,38 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		return response;
 	}
 
+	/**
+	 * The database chose this transaction as a deadlock victim or a lock wait timed out. The whole
+	 * transaction was rolled back, so retrying (with the same Idempotency-Key) is safe.
+	 */
+	private ResponseEntity<ProblemDetail> lockConflict(Exception ex, HttpServletRequest request) {
+		log.warn("Lock conflict on {} {}", request.getMethod(), request.getRequestURI(), ex);
+		ProblemDetail problem = problem(ErrorCode.CONCURRENCY_CONFLICT,
+				"The request conflicted with a concurrent update and was rolled back. Retry it.", request.getRequestURI());
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "1").body(problem);
+	}
+
+	/**
+	 * Finds a lock conflict anywhere in the cause chain. When MySQL kills a deadlocked transaction it also
+	 * discards open savepoints, so rolling back a nested transaction then fails and Spring reports that
+	 * failure, keeping the original deadlock only as the "application exception".
+	 */
+	static boolean isLockConflict(Throwable error) {
+		for (Throwable current = error; current != null; current = current.getCause()) {
+			if (current instanceof PessimisticLockingFailureException) {
+				return true;
+			}
+			if (current instanceof TransactionSystemException tx && tx.getApplicationException() != null
+					&& isLockConflict(tx.getApplicationException())) {
+				return true;
+			}
+			if (current.getCause() == current) {
+				break;
+			}
+		}
+		return false;
+	}
+
 	private static ProblemDetail validationProblem(List<Map<String, String>> errors) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid.");
 		problem.setType(ErrorCode.VALIDATION_FAILED.type());
@@ -139,6 +176,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			case INVALID_STATE_TRANSITION, VERSION_CONFLICT, INSUFFICIENT_INVENTORY -> HttpStatus.CONFLICT;
 			case PRECONDITION_FAILED -> HttpStatus.PRECONDITION_FAILED;
 			case IDEMPOTENCY_KEY_REUSED -> HttpStatus.UNPROCESSABLE_CONTENT;
+			case CONCURRENCY_CONFLICT -> HttpStatus.SERVICE_UNAVAILABLE;
 			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
 		};
 	}

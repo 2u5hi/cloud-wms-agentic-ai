@@ -3,6 +3,7 @@ package com.cloudwms.core.shared.error;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,8 +16,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -90,6 +93,21 @@ class ApiExceptionHandlerTest {
 			.andExpect(jsonPath("$.detail").value("An unexpected error occurred."));
 	}
 
+	@Test
+	void aDeadlockIsARetryable503() throws Exception {
+		mockMvc.perform(get("/test/deadlock"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "1"))
+			.andExpect(jsonPath("$.code").value("CONCURRENCY_CONFLICT"));
+	}
+
+	@Test
+	void aDeadlockHiddenBehindAFailedSavepointRollbackIsStillA503() throws Exception {
+		mockMvc.perform(get("/test/deadlock-behind-savepoint"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.code").value("CONCURRENCY_CONFLICT"));
+	}
+
 	record AdjustmentRequest(@NotBlank String sku, @Positive int quantity) {
 	}
 
@@ -104,6 +122,18 @@ class ApiExceptionHandlerTest {
 
 		@PostMapping("/test/adjustments")
 		void adjust(@Valid @RequestBody AdjustmentRequest request) {
+		}
+
+		@GetMapping("/test/deadlock")
+		void deadlock() {
+			throw new DeadlockLoserDataAccessException("Deadlock found when trying to get lock", null);
+		}
+
+		@GetMapping("/test/deadlock-behind-savepoint")
+		void deadlockBehindSavepoint() {
+			TransactionSystemException rollbackFailed = new TransactionSystemException("Could not roll back to savepoint");
+			rollbackFailed.initApplicationException(new DeadlockLoserDataAccessException("Deadlock found", null));
+			throw rollbackFailed;
 		}
 
 		@GetMapping("/test/boom")

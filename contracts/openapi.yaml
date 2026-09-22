@@ -9,9 +9,46 @@ servers:
 tags:
 - description: Stock by location and SKU
   name: Inventory
+- description: Inbound interface from the host system (ERP / order management)
+  name: Host integration
+- description: Customer orders and their fulfilment status
+  name: Orders
 - description: "Zones, locations, and SKUs"
   name: Master data
 paths:
+  /api/v1/integrations/host/orders:
+    post:
+      description: "Each order is processed independently and gets its own result:\
+        \ ACCEPTED, DUPLICATE (an order with this external reference already exists\
+        \ and was not changed), or REJECTED with field errors. Returns 200 whenever\
+        \ the batch itself is well formed, even if every order was rejected."
+      operationId: importOrders
+      parameters:
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderImportRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OrderImportResponse"
+          description: OK
+      summary: Import a batch of orders
+      tags:
+      - Host integration
   /api/v1/inventory:
     get:
       description: Stock per location and SKU. Balances with nothing on hand or allocated
@@ -300,6 +337,73 @@ paths:
       summary: Get a location
       tags:
       - Master data
+  /api/v1/orders:
+    get:
+      description: In the order they were received.
+      operationId: listOrders
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - RECEIVED
+          - ALLOCATED
+          - RELEASED
+          - PICKING
+          - PICKED
+          - PACKED
+          - SHIPPED
+          - CANCELLED
+      - in: query
+        name: onHold
+        required: false
+        schema:
+          type: boolean
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageOrderSummaryView"
+          description: OK
+      summary: List orders
+      tags:
+      - Orders
+  /api/v1/orders/{externalRef}:
+    get:
+      operationId: getOrder
+      parameters:
+      - in: path
+        name: externalRef
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OrderView"
+          description: OK
+      summary: Get an order with its lines
+      tags:
+      - Orders
   /api/v1/skus:
     get:
       operationId: listSkus
@@ -472,6 +576,73 @@ components:
       - onHand
       - sku
       - zone
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - message
+    HostOrder:
+      type: object
+      properties:
+        carrier:
+          type: string
+          maxLength: 30
+          minLength: 0
+        carrierCutoffAt:
+          type: string
+          format: date-time
+        customer:
+          type: string
+          maxLength: 100
+          minLength: 0
+        externalRef:
+          type: string
+          maxLength: 64
+          minLength: 0
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostOrderLine"
+          maxItems: 200
+          minItems: 0
+        priority:
+          type:
+          - integer
+          - "null"
+          format: int32
+          description: 1 (most urgent) to 5; defaults to 3
+          maximum: 5
+          minimum: 1
+      required:
+      - carrier
+      - carrierCutoffAt
+      - customer
+      - externalRef
+      - lines
+    HostOrderLine:
+      type: object
+      properties:
+        lineNo:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        quantity:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        sku:
+          type: string
+          maxLength: 40
+          minLength: 0
+      required:
+      - lineNo
+      - quantity
+      - sku
     LocationTypeAvailability:
       type: object
       properties:
@@ -580,6 +751,200 @@ components:
       required:
       - balances
       - transaction
+    OrderImportRequest:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostOrder"
+          maxItems: 500
+          minItems: 1
+      required:
+      - orders
+    OrderImportResponse:
+      type: object
+      properties:
+        accepted:
+          type: integer
+          format: int32
+        duplicates:
+          type: integer
+          format: int32
+        rejected:
+          type: integer
+          format: int32
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderResult"
+      required:
+      - accepted
+      - duplicates
+      - rejected
+      - results
+    OrderLineView:
+      type: object
+      properties:
+        allocated:
+          type: integer
+          format: int32
+        lineNo:
+          type: integer
+          format: int32
+        ordered:
+          type: integer
+          format: int32
+        picked:
+          type: integer
+          format: int32
+        shipped:
+          type: integer
+          format: int32
+        shortQuantity:
+          type: integer
+          format: int32
+        sku:
+          type: string
+      required:
+      - allocated
+      - lineNo
+      - ordered
+      - picked
+      - shipped
+      - shortQuantity
+      - sku
+    OrderResult:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+        externalRef:
+          type:
+          - string
+          - "null"
+          description: Null only if the order had no reference
+        result:
+          type: string
+          enum:
+          - ACCEPTED
+          - DUPLICATE
+          - REJECTED
+      required:
+      - errors
+      - result
+    OrderSummaryView:
+      type: object
+      properties:
+        carrier:
+          type: string
+        carrierCutoffAt:
+          type: string
+          format: date-time
+        customer:
+          type: string
+        externalRef:
+          type: string
+        holdReason:
+          type:
+          - string
+          - "null"
+        lines:
+          type: integer
+          format: int32
+        onHold:
+          type: boolean
+        priority:
+          type: integer
+          format: int32
+        receivedAt:
+          type: string
+          format: date-time
+        shortQuantity:
+          type: integer
+          format: int32
+          description: Units ordered but not allocated
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - ALLOCATED
+          - RELEASED
+          - PICKING
+          - PICKED
+          - PACKED
+          - SHIPPED
+          - CANCELLED
+        unitsAllocated:
+          type: integer
+          format: int32
+        unitsOrdered:
+          type: integer
+          format: int32
+      required:
+      - carrier
+      - carrierCutoffAt
+      - customer
+      - externalRef
+      - lines
+      - onHold
+      - priority
+      - receivedAt
+      - shortQuantity
+      - status
+      - unitsAllocated
+      - unitsOrdered
+    OrderView:
+      type: object
+      properties:
+        carrier:
+          type: string
+        carrierCutoffAt:
+          type: string
+          format: date-time
+        customer:
+          type: string
+        externalRef:
+          type: string
+        holdReason:
+          type:
+          - string
+          - "null"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLineView"
+        onHold:
+          type: boolean
+        priority:
+          type: integer
+          format: int32
+        receivedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - ALLOCATED
+          - RELEASED
+          - PICKING
+          - PICKED
+          - PACKED
+          - SHIPPED
+          - CANCELLED
+      required:
+      - carrier
+      - carrierCutoffAt
+      - customer
+      - externalRef
+      - lines
+      - onHold
+      - priority
+      - receivedAt
+      - status
     PageBalanceView:
       type: object
       properties:
@@ -601,6 +966,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LocationView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PageOrderSummaryView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderSummaryView"
         nextCursor:
           type:
           - string

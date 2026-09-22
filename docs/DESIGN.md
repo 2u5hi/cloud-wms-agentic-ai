@@ -381,7 +381,8 @@ The engine does the joins and arithmetic. The agent's job is to explain the resu
   `If-Match: <version>`, and a mismatch returns `409 VERSION_CONFLICT`.
 - **Errors:** RFC 9457 `application/problem+json` (Spring's `ProblemDetail`) with stable domain codes:
   `INSUFFICIENT_INVENTORY`, `INVALID_STATE_TRANSITION`, `VERSION_CONFLICT`, `PRECONDITION_FAILED`,
-  `NOT_ELIGIBLE`, `INVALID_CONFIGURATION`.
+  `NOT_ELIGIBLE`, `INVALID_CONFIGURATION`. Deadlocks and lock timeouts return a retryable
+  `503 CONCURRENCY_CONFLICT` ([ADR 0017](adr/0017-read-committed-and-lock-conflicts.md)).
 - **Keyset (cursor) pagination:** `?cursor=&limit=` returns `{items, nextCursor}`, with filtering (`?status=RELEASED&zone=A`).
 - **Auth:** OAuth2 via Keycloak. Clients: `web` (authorization code + PKCE), `ops-agent`, `host-sim`,
   `floor-sim` (client credentials). Scopes: `wms.read`, `wms.operate`, `wms.plan`, `wms.configure`,
@@ -584,9 +585,10 @@ subscribers (Pub/Sub subscriptions):
 ## 7. Integrations
 
 ### 7.1 Host (ERP) interface
-- **Inbound:** `POST /integrations/host/orders` accepts a batch and returns a result per order
-  (`ACCEPTED` / `DUPLICATE` / `REJECTED` with reasons). It is idempotent on `external_ref`, and every message is
-  stored in `integration_message`.
+- **Inbound:** `POST /integrations/host/orders` accepts a batch of up to 500 and returns a result per order
+  (`ACCEPTED` / `DUPLICATE` / `REJECTED` with field errors). Each order succeeds or fails on its own. A resend
+  with an existing `external_ref` is a `DUPLICATE` and never changes the stored order ([ADR 0016](adr/0016-host-order-import.md)).
+  Storing raw messages in `integration_message` comes with the integration monitor.
 - **Outbound:** ship confirmations and inventory adjustments are published to `host-outbound`. The host sim
   acknowledges them, and rejects some deliberately (for example, an unknown carrier code) to exercise retries,
   dead-lettering, and the integration monitor UI.
@@ -713,7 +715,7 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 |---|---|---|
 | Core language | Java 21 + Spring Boot | Same stack as Manhattan's published platform. Demonstrates learning an unfamiliar enterprise stack. Checkpoint after M1 to fall back to Python if needed |
 | Agent language | Python | Existing strength; strongest AI tooling; enforces the API-only boundary |
-| Database | MySQL 8 | Manhattan's published choice (Cloud SQL for MySQL); familiar; has `SKIP LOCKED`, `JSON`, `CHECK` |
+| Database | MySQL 8, READ COMMITTED | Manhattan's published choice (Cloud SQL for MySQL); familiar; has `SKIP LOCKED`, `JSON`, `CHECK`. READ COMMITTED avoids gap-lock deadlocks ([ADR 0017](adr/0017-read-committed-and-lock-conflicts.md)) |
 | Messaging | Google Pub/Sub (emulator locally) | Manhattan's published choice; free locally; same client code as production |
 | Runtime | Docker Compose → kind → optional GKE | Free; the same images and manifests would run on GKE |
 | Persistence | `JdbcClient`, explicit SQL | Concurrency-heavy domain: row locks and lock ordering must be visible and reviewable. JPA considered and not used ([ADR 0002](adr/0002-jdbcclient-over-jpa.md)) |
