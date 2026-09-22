@@ -1,0 +1,46 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java / Gradle
+.gradle/
+build/
+out/
+*.class
+hs_err_pid*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Local data
+*.sqlite
+*.db
+deploy/compose/data/
+
+# Logs
+*.log
