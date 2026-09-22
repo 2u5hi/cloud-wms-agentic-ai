@@ -6,7 +6,8 @@
 > agents embedded in the operational layer). It contains no proprietary code, schemas, or documentation from
 > any vendor, and it does not claim to reproduce any vendor's product.
 
-Status: **Draft v2, for review before implementation.**
+Status: **Living design.** Implementation decisions, with code references, are recorded in
+[`docs/adr/`](adr/README.md). This document is updated wherever the implementation departs from the plan.
 
 Changes since v1: Java/Spring Boot core, Python agent, MySQL (not Postgres), Google Pub/Sub (emulator locally),
 local-first on Docker and Kubernetes, configuration-driven rules, an automation (MHE) integration, a bidirectional
@@ -179,7 +180,7 @@ CI fails if the committed spec drifts from the generated one.
 **Logic kept separate from I/O.** Allocation planning, state transitions, risk projection, and blocker diagnosis
 are plain Java classes with no Spring or database dependencies. Services load state, call them, and persist the
 results in one transaction along with their outbox events. This keeps the interesting logic fast to unit test
-and property test (jqwik).
+and property test (seeded random sequences; see [ADR 0006](adr/0006-property-tests-without-a-library.md)).
 
 **Configuration over code.** Warehouse behavior (which orders go in a wave, which locations to allocate from,
 when to replenish) lives in versioned configuration records, not in code. This mirrors how a WMS is implemented
@@ -201,7 +202,7 @@ in practice: consultants configure rules, and extensions are for what configurat
 | Frontend | React + TS + Vite, TanStack Query + TanStack Table, Tailwind + shadcn/ui | Dense, data-grid-heavy operations UI |
 | Live updates | Server-Sent Events (Spring `SseEmitter`), fed by a Pub/Sub subscription | One-way push is enough |
 | Observability | OpenTelemetry (Java agent + Python SDK) → `grafana/otel-lgtm` container | Traces follow a request from the API through the database and Pub/Sub to the agent |
-| Tests | JUnit 5, **Testcontainers** (MySQL, Pub/Sub emulator), jqwik (property tests), ArchUnit (module boundaries), pytest | |
+| Tests | JUnit 5, **Testcontainers** (MySQL, Pub/Sub emulator), seeded property tests, ArchUnit (module boundaries), pytest | |
 | Local runtime | Docker Compose → kind + Kustomize | |
 | CI | GitHub Actions: build, tests, spec-drift check, client codegen, image builds | |
 
@@ -262,9 +263,9 @@ erDiagram
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `zone` | code, kind (`PICK`, `RESERVE`, `STAGING`, `PACK`, `DOCK`) | |
+| `zone` | code, name | A grouping only. Forward-pick and reserve share aisle zones, so the type is per location ([ADR 0010](adr/0010-zones-and-location-types.md)) |
 | `location` | code (`A-03-02-B`), zone_id, type (`FORWARD_PICK`/`RESERVE`/`STAGING`/`PACK`/`DOCK`), pick_sequence, capacity_units, required_equipment (nullable) | `pick_sequence` drives pick-path ordering. Reserve may require `REACH_TRUCK` |
-| `sku` | code (`NK-AM-001`), description, uom, velocity_class (A/B/C) | |
+| `sku` | code (`SKU-10001`), description, uom, velocity_class (A/B/C) | |
 | `pick_slot` | sku_id, location_id, min_qty, max_qty | Forward-pick slotting and replenishment thresholds |
 | `inventory_balance` | location_id, sku_id, on_hand, allocated, version | `CHECK (on_hand >= 0 AND allocated >= 0 AND allocated <= on_hand)`. `available = on_hand − allocated` |
 | `inventory_txn` | type (`RECEIPT`,`PICK`,`MOVE`,`ADJUST`,`COUNT_VARIANCE`), sku_id, from_loc, to_loc, qty, reason, ref_type/ref_id, actor, occurred_at | **Append-only.** Balances are a projection kept in the same transaction. A reconciliation check asserts `Σ ledger == balance` |
@@ -283,14 +284,15 @@ erDiagram
 | `alert` | type, severity, subject_type/subject_id, status (`OPEN`/`ACKED`/`RESOLVED`), fingerprint, `open_fingerprint` (generated column: fingerprint when OPEN, else NULL), details (JSON) | MySQL has no partial indexes. A unique index on `open_fingerprint` gives "one open alert per fingerprint" because MySQL unique indexes allow multiple NULLs |
 | `proposal` | alert_id, agent_run_id, status, rationale, commands (JSON), preconditions (JSON), predicted_impact (JSON), decided_by, decided_at, execution_result | §5.4 |
 | `agent_run` / `agent_step` | (owned by ops-agent, which has its own small store: SQLite locally) | The agent service owns its traces. The core stores only proposals |
-| `idempotency_key` | key, principal, request_hash, response, created_at | For POST commands |
+| `idempotency_key` | (principal, idem_key), request_hash, response status/content type/location/body, created_at | Written in the same transaction as the command ([ADR 0007](adr/0007-idempotency-keys-in-the-command-transaction.md)) |
 
 ### 3.2 State machines
 
 ```
-Order:  RECEIVED → PLANNED → ALLOCATED ─┬→ PICKING → PICKED → PACKED → SHIPPED
-                         ↘ SHORT (partial/none)
-        any pre-ship state ⇄ ON_HOLD;  pre-pick → CANCELLED
+Order:  RECEIVED ⇄ ALLOCATED → RELEASED → PICKING → PICKED → PACKED → SHIPPED
+        RECEIVED / ALLOCATED → CANCELLED
+        on_hold is a separate flag (RECEIVED..PICKED); short allocation is derived from the lines
+        (ADR 0011)
 
 Wave:   PLANNED → RELEASED → IN_PROGRESS → COMPLETED;  PLANNED → CANCELLED
 
@@ -354,7 +356,7 @@ from recent completions by eligible workers. An order is at risk when the projec
   "wave": 27, "orders": 25, "picks": {"total": 183, "completed": 96, "ready": 60, "waiting": 27},
   "blockers": [{
     "kind": "WAITING_ON_REPLENISHMENT",
-    "affected_picks": 27, "affected_orders": 9, "sku": "NK-AM-001",
+    "affected_picks": 27, "affected_orders": 9, "sku": "SKU-10035",
     "replen_task": {"id": "T-8812", "status": "READY", "age_min": 41,
                     "required_equipment": "REACH_TRUCK", "eligible_workers_available": 0},
     "root_cause": "NO_ELIGIBLE_WORKER_AVAILABLE"
@@ -370,13 +372,17 @@ The engine does the joins and arithmetic. The agent's job is to explain the resu
 
 **Conventions**
 - Base path `/api/v1`. Resource-oriented reads; commands are `POST` to action sub-resources (`/waves/{id}/release`).
-- **`Idempotency-Key`** header required on every `POST` command. The response for a repeated key is replayed.
-- **Optimistic concurrency:** resources carry `version`. Commands accept `If-Match: <version>`, and a mismatch
-  returns `409 VERSION_CONFLICT`.
+- **`Idempotency-Key`** header required on every `POST` command, recorded in the command's own transaction. The same
+  key and request replays the stored response (`Idempotent-Replayed: true`). The same key with a different request
+  returns `422 IDEMPOTENCY_KEY_REUSED`. A failed request doesn't consume its key ([ADR 0007](adr/0007-idempotency-keys-in-the-command-transaction.md)).
+- **Resources are addressed by business code** (`/skus/SKU-10001`, `"location": "A-01-01-A"`); internal IDs stay
+  internal ([ADR 0008](adr/0008-api-conventions.md)).
+- **Optimistic concurrency** (planned, not yet built): resources carry `version`. Commands will accept
+  `If-Match: <version>`, and a mismatch returns `409 VERSION_CONFLICT`.
 - **Errors:** RFC 9457 `application/problem+json` (Spring's `ProblemDetail`) with stable domain codes:
   `INSUFFICIENT_INVENTORY`, `INVALID_STATE_TRANSITION`, `VERSION_CONFLICT`, `PRECONDITION_FAILED`,
   `NOT_ELIGIBLE`, `INVALID_CONFIGURATION`.
-- **Cursor pagination** (`?cursor=&limit=`), filtering (`?status=RELEASED&zone=A`).
+- **Keyset (cursor) pagination:** `?cursor=&limit=` returns `{items, nextCursor}`, with filtering (`?status=RELEASED&zone=A`).
 - **Auth:** OAuth2 via Keycloak. Clients: `web` (authorization code + PKCE), `ops-agent`, `host-sim`,
   `floor-sim` (client credentials). Scopes: `wms.read`, `wms.operate`, `wms.plan`, `wms.configure`,
   `wms.propose`, `wms.execute`, `wms.integrate`.
@@ -691,7 +697,7 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
    test scenarios → cutover and rollback considerations. This shows the non-code half of the job.
 7. **Demo video (~3 minutes)**:
    1. Dashboard live, sims at 20×. Point out the KPIs and the event ticker.
-   2. Inject `worker-offline REACH_TRUCK` + `deplete-forward NK-AM-001`. Wave 27 goes **BLOCKED**, and ORDER_AT_RISK fires.
+   2. Inject `worker-offline REACH_TRUCK` + `deplete-forward SKU-10035`. Wave 27 goes **BLOCKED**, and ORDER_AT_RISK fires.
    3. The AI Ops panel fills in automatically. Each claim in the agent's diagnosis links to evidence.
    4. Open the proposal: reassign T-8812, raise its priority, push back the low-priority task. Predicted impact:
       waiting picks 27 → 0, at-risk orders 3 → 0.
@@ -702,7 +708,7 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 
 ---
 
-## 13. Decision log (summary; full versions go in `docs/adr/`)
+## 13. Decision log (summary; implementation decisions are in [`docs/adr/`](adr/README.md))
 | Decision | Choice | Reason |
 |---|---|---|
 | Core language | Java 21 + Spring Boot | Same stack as Manhattan's published platform. Demonstrates learning an unfamiliar enterprise stack. Checkpoint after M1 to fall back to Python if needed |
@@ -710,7 +716,8 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 | Database | MySQL 8 | Manhattan's published choice (Cloud SQL for MySQL); familiar; has `SKIP LOCKED`, `JSON`, `CHECK` |
 | Messaging | Google Pub/Sub (emulator locally) | Manhattan's published choice; free locally; same client code as production |
 | Runtime | Docker Compose → kind → optional GKE | Free; the same images and manifests would run on GKE |
-| Persistence | `JdbcClient`, explicit SQL | Concurrency-heavy domain: row locks and lock ordering must be visible and reviewable. JPA considered and not used |
+| Persistence | `JdbcClient`, explicit SQL | Concurrency-heavy domain: row locks and lock ordering must be visible and reviewable. JPA considered and not used ([ADR 0002](adr/0002-jdbcclient-over-jpa.md)) |
+| Build | Maven, pinned versions | Initializr's Gradle generation was broken; Maven is common in enterprise Java ([ADR 0001](adr/0001-maven-and-pinned-versions.md)) |
 | Auth | Keycloak | Standard OAuth2/OIDC without hand-rolling a token server |
 | Service split | Core / agent / simulators / web | Boundaries follow security and external-system lines, not tables |
 | LLM | Ollama for development; Anthropic for demos and evals | Free iteration; cost limited to demo and eval runs |
