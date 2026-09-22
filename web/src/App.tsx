@@ -1,11 +1,11 @@
-import { Button } from '@/components/ui/button'
+import { AppShell } from '@/components/layout/AppShell'
+import { DashboardPage } from '@/pages/DashboardPage'
 
 function App() {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4">
-      <h1 className="text-2xl font-semibold">WMS Console</h1>
-      <Button>Get started</Button>
-    </main>
+    <AppShell title="Dashboard">
+      <DashboardPage />
+    </AppShell>
   )
 }
 
