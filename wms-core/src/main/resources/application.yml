@@ -8,6 +8,10 @@ spring:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3307/wms}
     username: ${MYSQL_USER:wms}
     password: ${MYSQL_PASSWORD:wms}
+    hikari:
+      # Fail fast when MySQL is unreachable (Hikari's default is 30s), so requests and the
+      # health check report the outage promptly instead of hanging.
+      connection-timeout: 5000
   flyway:
     locations: classpath:db/migration
 
