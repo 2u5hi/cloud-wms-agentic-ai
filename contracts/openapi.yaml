@@ -6,5 +6,283 @@ info:
 servers:
 - description: Local development
   url: http://localhost:8080
-paths: {}
-components: {}
+tags:
+- description: "Zones, locations, and SKUs"
+  name: Master data
+paths:
+  /api/v1/locations:
+    get:
+      description: Optionally filtered by zone code and location type.
+      operationId: listLocations
+      parameters:
+      - in: query
+        name: zone
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+          enum:
+          - FORWARD_PICK
+          - RESERVE
+          - STAGING
+          - PACK
+          - DOCK
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageLocationView"
+          description: OK
+      summary: List locations
+      tags:
+      - Master data
+  /api/v1/locations/{code}:
+    get:
+      description: Includes the pick slot for forward-pick locations.
+      operationId: getLocation
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LocationView"
+          description: OK
+      summary: Get a location
+      tags:
+      - Master data
+  /api/v1/skus:
+    get:
+      operationId: listSkus
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageSkuView"
+          description: OK
+      summary: List SKUs
+      tags:
+      - Master data
+  /api/v1/skus/{code}:
+    get:
+      operationId: getSku
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SkuView"
+          description: OK
+      summary: Get a SKU
+      tags:
+      - Master data
+  /api/v1/zones:
+    get:
+      operationId: listZones
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageZoneView"
+          description: OK
+      summary: List zones
+      tags:
+      - Master data
+components:
+  schemas:
+    LocationView:
+      type: object
+      properties:
+        active:
+          type: boolean
+        capacityUnits:
+          type:
+          - integer
+          - "null"
+          format: int32
+        code:
+          type: string
+        pickSequence:
+          type:
+          - integer
+          - "null"
+          format: int32
+          description: Walking order for pick-path sequencing
+        pickSlot:
+          description: Set for forward-pick slots
+          oneOf:
+          - $ref: "#/components/schemas/PickSlotView"
+          - type: "null"
+        requiredEquipment:
+          type:
+          - string
+          - "null"
+          description: "Equipment needed to reach it, e.g. REACH_TRUCK"
+        type:
+          type: string
+          enum:
+          - FORWARD_PICK
+          - RESERVE
+          - STAGING
+          - PACK
+          - DOCK
+        zone:
+          type: string
+      required:
+      - active
+      - code
+      - type
+      - zone
+    PageLocationView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocationView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PageSkuView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkuView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PageZoneView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PickSlotView:
+      type: object
+      properties:
+        maxQty:
+          type: integer
+          format: int32
+        minQty:
+          type: integer
+          format: int32
+        sku:
+          type: string
+      required:
+      - maxQty
+      - minQty
+      - sku
+    SkuView:
+      type: object
+      properties:
+        active:
+          type: boolean
+        code:
+          type: string
+        description:
+          type: string
+        uom:
+          type: string
+        velocityClass:
+          type:
+          - string
+          - "null"
+          enum:
+          - A
+          - B
+          - C
+      required:
+      - active
+      - code
+      - description
+      - uom
+    ZoneView:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+      required:
+      - code
+      - name

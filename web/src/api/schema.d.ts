@@ -3,10 +3,155 @@
  * Do not make direct changes to the file.
  */
 
-export type paths = Record<string, never>;
+export interface paths {
+    "/api/v1/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List locations
+         * @description Optionally filtered by zone code and location type.
+         */
+        get: operations["listLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a location
+         * @description Includes the pick slot for forward-pick locations.
+         */
+        get: operations["getLocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List SKUs */
+        get: operations["listSkus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skus/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a SKU */
+        get: operations["getSku"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List zones */
+        get: operations["listZones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        LocationView: {
+            active: boolean;
+            /** Format: int32 */
+            capacityUnits?: number | null;
+            code: string;
+            /**
+             * Format: int32
+             * @description Walking order for pick-path sequencing
+             */
+            pickSequence?: number | null;
+            /** @description Set for forward-pick slots */
+            pickSlot?: components["schemas"]["PickSlotView"] | null;
+            /** @description Equipment needed to reach it, e.g. REACH_TRUCK */
+            requiredEquipment?: string | null;
+            /** @enum {string} */
+            type: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
+            zone: string;
+        };
+        PageLocationView: {
+            items: components["schemas"]["LocationView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PageSkuView: {
+            items: components["schemas"]["SkuView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PageZoneView: {
+            items: components["schemas"]["ZoneView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PickSlotView: {
+            /** Format: int32 */
+            maxQty: number;
+            /** Format: int32 */
+            minQty: number;
+            sku: string;
+        };
+        SkuView: {
+            active: boolean;
+            code: string;
+            description: string;
+            uom: string;
+            /** @enum {string|null} */
+            velocityClass?: "A" | "B" | "C" | null;
+        };
+        ZoneView: {
+            code: string;
+            name: string;
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -14,4 +159,120 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    listLocations: {
+        parameters: {
+            query?: {
+                zone?: string;
+                type?: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageLocationView"];
+                };
+            };
+        };
+    };
+    getLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LocationView"];
+                };
+            };
+        };
+    };
+    listSkus: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageSkuView"];
+                };
+            };
+        };
+    };
+    getSku: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SkuView"];
+                };
+            };
+        };
+    };
+    listZones: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageZoneView"];
+                };
+            };
+        };
+    };
+}

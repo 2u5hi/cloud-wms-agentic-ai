@@ -8,6 +8,7 @@ import java.util.Objects;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -65,6 +68,29 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	@Override
+	protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		List<Map<String, String>> errors = ex.getParameterValidationResults()
+			.stream()
+			.flatMap(result -> result.getResolvableErrors()
+				.stream()
+				.map(error -> Map.of("field", Objects.requireNonNullElse(result.getMethodParameter().getParameterName(), "?"),
+						"message", Objects.requireNonNullElse(error.getDefaultMessage(), "is invalid"))))
+			.toList();
+		return handleExceptionInternal(ex, validationProblem(errors), headers, HttpStatus.BAD_REQUEST, request);
+	}
+
+	@Override
+	protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+		String field = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName()
+				: Objects.requireNonNullElse(ex.getPropertyName(), "?");
+		String message = "has an invalid value '%s'".formatted(ex.getValue());
+		return handleExceptionInternal(ex, validationProblem(List.of(Map.of("field", field, "message", message))), headers,
+				HttpStatus.BAD_REQUEST, request);
+	}
+
+	@Override
 	protected ResponseEntity<Object> handleNoResourceFoundException(NoResourceFoundException ex,
 			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 		ProblemDetail problem = ex.getBody();
@@ -85,6 +111,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			}
 		}
 		return response;
+	}
+
+	private static ProblemDetail validationProblem(List<Map<String, String>> errors) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid.");
+		problem.setType(ErrorCode.VALIDATION_FAILED.type());
+		problem.setTitle(ErrorCode.VALIDATION_FAILED.title());
+		problem.setProperty("code", ErrorCode.VALIDATION_FAILED.name());
+		problem.setProperty("errors", errors);
+		return problem;
 	}
 
 	private static ProblemDetail problem(ErrorCode code, String detail, String path) {

@@ -28,6 +28,24 @@ final class InventoryFixtures {
 				prefix + "-" + UUID.randomUUID().toString().substring(0, 8), zoneId, type);
 	}
 
+	long location(long zoneId, String type, Integer pickSequence) {
+		return insert("INSERT INTO location (code, zone_id, type, pick_sequence) VALUES (?, ?, ?, ?)",
+				prefix + "-" + UUID.randomUUID().toString().substring(0, 8), zoneId, type, pickSequence);
+	}
+
+	void pickSlot(long locationId, long skuId, int minQty, int maxQty) {
+		insert("INSERT INTO pick_slot (location_id, sku_id, min_qty, max_qty) VALUES (?, ?, ?, ?)", locationId, skuId,
+				minQty, maxQty);
+	}
+
+	/** The business code of a zone, location, or SKU row. */
+	String code(String table, long id) {
+		if (!table.matches("zone|location|sku")) {
+			throw new IllegalArgumentException(table);
+		}
+		return jdbc.sql("SELECT code FROM " + table + " WHERE id = ?").param(id).query(String.class).single();
+	}
+
 	long sku() {
 		return insert("INSERT INTO sku (code, description) VALUES (?, 'Test SKU')",
 				prefix + "-" + UUID.randomUUID().toString().substring(0, 8));
