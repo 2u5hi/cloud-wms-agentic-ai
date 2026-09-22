@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info:
+  description: "Warehouse management core: inventory, orders, waves, tasks, and execution."
+  title: WMS Core API
+  version: v1
+servers:
+- description: Local development
+  url: http://localhost:8080
+paths: {}
+components: {}
