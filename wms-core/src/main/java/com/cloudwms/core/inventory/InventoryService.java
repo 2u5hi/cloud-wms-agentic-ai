@@ -48,6 +48,16 @@ public class InventoryService {
 		return new RecordedMovement(transactionId, updated);
 	}
 
+	/** Resolves a SKU code to its id, or NOT_FOUND. */
+	public long skuId(String code) {
+		return repository.findSkuId(code).orElseThrow(() -> notFound("SKU", code));
+	}
+
+	/** Resolves a location code to its id, or NOT_FOUND. */
+	public long locationId(String code) {
+		return repository.findLocationId(code).orElseThrow(() -> notFound("Location", code));
+	}
+
 	private void requireExists(InventoryMovement movement) {
 		if (!repository.skuExists(movement.skuId())) {
 			throw notFound("SKU", movement.skuId());
@@ -62,6 +72,11 @@ public class InventoryService {
 	private static DomainException notFound(String what, long id) {
 		return new DomainException(ErrorCode.NOT_FOUND, "%s %d does not exist".formatted(what, id),
 				Map.of(what.toLowerCase() + "Id", id));
+	}
+
+	private static DomainException notFound(String what, String code) {
+		return new DomainException(ErrorCode.NOT_FOUND, "%s %s does not exist".formatted(what, code),
+				Map.of(what.toLowerCase(), code));
 	}
 
 	/** The ledger row id and the balances after the movement. */

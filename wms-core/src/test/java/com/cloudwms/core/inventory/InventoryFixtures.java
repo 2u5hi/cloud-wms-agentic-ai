@@ -46,6 +46,14 @@ final class InventoryFixtures {
 		return jdbc.sql("SELECT code FROM " + table + " WHERE id = ?").param(id).query(String.class).single();
 	}
 
+	long locationIdByCode(String code) {
+		return jdbc.sql("SELECT id FROM location WHERE code = ?").param(code).query(Long.class).single();
+	}
+
+	long skuIdByCode(String code) {
+		return jdbc.sql("SELECT id FROM sku WHERE code = ?").param(code).query(Long.class).single();
+	}
+
 	long sku() {
 		return insert("INSERT INTO sku (code, description) VALUES (?, 'Test SKU')",
 				prefix + "-" + UUID.randomUUID().toString().substring(0, 8));

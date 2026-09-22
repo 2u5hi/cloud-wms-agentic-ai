@@ -24,6 +24,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct stock at a location
+         * @description A signed correction with a mandatory reason, e.g. -4 for damaged units.
+         */
+        post: operations["recordAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move stock between locations
+         * @description For example replenishment from reserve to forward-pick. All or nothing.
+         */
+        post: operations["recordMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive stock into a location */
+        post: operations["recordReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List ledger entries
+         * @description Newest first.
+         */
+        get: operations["listTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a ledger entry */
+        get: operations["getTransaction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations": {
         parameters: {
             query?: never;
@@ -139,6 +233,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ActorView: {
+            id: string;
+            /** @enum {string} */
+            type: "HUMAN" | "AGENT" | "SYSTEM" | "INTEGRATION";
+        };
+        AdjustmentRequest: {
+            location: string;
+            /**
+             * Format: int32
+             * @description Signed change: positive adds stock, negative removes it. Must not be 0.
+             */
+            quantity: number;
+            reason: string;
+            sku: string;
+        };
         BalanceView: {
             /** Format: int32 */
             allocated: number;
@@ -182,6 +291,17 @@ export interface components {
             type: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
             zone: string;
         };
+        MoveRequest: {
+            fromLocation: string;
+            /** Format: int32 */
+            quantity: number;
+            sku: string;
+            toLocation: string;
+        };
+        MovementResultView: {
+            balances: components["schemas"]["BalanceView"][];
+            transaction: components["schemas"]["TransactionView"];
+        };
         PageBalanceView: {
             items: components["schemas"]["BalanceView"][];
             /** @description Opaque cursor for the next page; null on the last page */
@@ -194,6 +314,11 @@ export interface components {
         };
         PageSkuView: {
             items: components["schemas"]["SkuView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PageTransactionView: {
+            items: components["schemas"]["TransactionView"][];
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
@@ -217,6 +342,22 @@ export interface components {
             /** Format: int32 */
             onHand: number;
         };
+        ReceiptRequest: {
+            location: string;
+            /** Format: int32 */
+            quantity: number;
+            /** @description What the receipt belongs to, e.g. a purchase order */
+            reference?: components["schemas"]["ReferenceBody"] | null;
+            sku: string;
+        };
+        ReferenceBody: {
+            id: string;
+            type: string;
+        };
+        ReferenceView: {
+            id: string;
+            type: string;
+        };
         SkuAvailabilityView: {
             byLocationType: components["schemas"]["LocationTypeAvailability"][];
             sku: string;
@@ -229,6 +370,22 @@ export interface components {
             uom: string;
             /** @enum {string|null} */
             velocityClass?: "A" | "B" | "C" | null;
+        };
+        TransactionView: {
+            actor: components["schemas"]["ActorView"];
+            fromLocation?: string | null;
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: int32 */
+            quantity: number;
+            reason?: string | null;
+            reference?: components["schemas"]["ReferenceView"] | null;
+            sku: string;
+            toLocation?: string | null;
+            /** @enum {string} */
+            type: "RECEIPT" | "PICK" | "MOVE" | "ADJUST" | "COUNT_VARIANCE";
         };
         ZoneView: {
             code: string;
@@ -267,6 +424,126 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PageBalanceView"];
+                };
+            };
+        };
+    };
+    recordAdjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MovementResultView"];
+                };
+            };
+        };
+    };
+    recordMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MovementResultView"];
+                };
+            };
+        };
+    };
+    recordReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MovementResultView"];
+                };
+            };
+        };
+    };
+    listTransactions: {
+        parameters: {
+            query?: {
+                sku?: string;
+                location?: string;
+                type?: "RECEIPT" | "PICK" | "MOVE" | "ADJUST" | "COUNT_VARIANCE";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageTransactionView"];
+                };
+            };
+        };
+    };
+    getTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TransactionView"];
                 };
             };
         };

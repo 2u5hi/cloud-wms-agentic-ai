@@ -74,6 +74,137 @@ paths:
       summary: List inventory balances
       tags:
       - Inventory
+  /api/v1/inventory/adjustments:
+    post:
+      description: "A signed correction with a mandatory reason, e.g. -4 for damaged\
+        \ units."
+      operationId: recordAdjustment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MovementResultView"
+          description: Created
+      summary: Correct stock at a location
+      tags:
+      - Inventory
+  /api/v1/inventory/moves:
+    post:
+      description: For example replenishment from reserve to forward-pick. All or
+        nothing.
+      operationId: recordMove
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MovementResultView"
+          description: Created
+      summary: Move stock between locations
+      tags:
+      - Inventory
+  /api/v1/inventory/receipts:
+    post:
+      operationId: recordReceipt
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MovementResultView"
+          description: Created
+      summary: Receive stock into a location
+      tags:
+      - Inventory
+  /api/v1/inventory/transactions:
+    get:
+      description: Newest first.
+      operationId: listTransactions
+      parameters:
+      - in: query
+        name: sku
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: location
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+          enum:
+          - RECEIPT
+          - PICK
+          - MOVE
+          - ADJUST
+          - COUNT_VARIANCE
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageTransactionView"
+          description: OK
+      summary: List ledger entries
+      tags:
+      - Inventory
+  /api/v1/inventory/transactions/{id}:
+    get:
+      operationId: getTransaction
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TransactionView"
+          description: OK
+      summary: Get a ledger entry
+      tags:
+      - Inventory
   /api/v1/locations:
     get:
       description: Optionally filtered by zone code and location type.
@@ -237,6 +368,46 @@ paths:
       - Master data
 components:
   schemas:
+    ActorView:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - HUMAN
+          - AGENT
+          - SYSTEM
+          - INTEGRATION
+      required:
+      - id
+      - type
+    AdjustmentRequest:
+      type: object
+      properties:
+        location:
+          type: string
+          maxLength: 30
+          minLength: 0
+        quantity:
+          type: integer
+          format: int32
+          description: "Signed change: positive adds stock, negative removes it. Must\
+            \ not be 0."
+        reason:
+          type: string
+          maxLength: 200
+          minLength: 0
+        sku:
+          type: string
+          maxLength: 40
+          minLength: 0
+      required:
+      - location
+      - quantity
+      - reason
+      - sku
     BalanceView:
       type: object
       properties:
@@ -343,6 +514,42 @@ components:
       - code
       - type
       - zone
+    MoveRequest:
+      type: object
+      properties:
+        fromLocation:
+          type: string
+          maxLength: 30
+          minLength: 0
+        quantity:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        sku:
+          type: string
+          maxLength: 40
+          minLength: 0
+        toLocation:
+          type: string
+          maxLength: 30
+          minLength: 0
+      required:
+      - fromLocation
+      - quantity
+      - sku
+      - toLocation
+    MovementResultView:
+      type: object
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceView"
+        transaction:
+          $ref: "#/components/schemas/TransactionView"
+      required:
+      - balances
+      - transaction
     PageBalanceView:
       type: object
       properties:
@@ -378,6 +585,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SkuView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PageTransactionView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionView"
         nextCursor:
           type:
           - string
@@ -430,6 +651,54 @@ components:
       - allocated
       - available
       - onHand
+    ReceiptRequest:
+      type: object
+      properties:
+        location:
+          type: string
+          maxLength: 30
+          minLength: 0
+        quantity:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        reference:
+          description: "What the receipt belongs to, e.g. a purchase order"
+          oneOf:
+          - $ref: "#/components/schemas/ReferenceBody"
+          - type: "null"
+        sku:
+          type: string
+          maxLength: 40
+          minLength: 0
+      required:
+      - location
+      - quantity
+      - sku
+    ReferenceBody:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+          minLength: 0
+        type:
+          type: string
+          maxLength: 30
+          minLength: 0
+      required:
+      - id
+      - type
+    ReferenceView:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+      required:
+      - id
+      - type
     SkuAvailabilityView:
       type: object
       properties:
@@ -469,6 +738,53 @@ components:
       - code
       - description
       - uom
+    TransactionView:
+      type: object
+      properties:
+        actor:
+          $ref: "#/components/schemas/ActorView"
+        fromLocation:
+          type:
+          - string
+          - "null"
+        id:
+          type: integer
+          format: int64
+        occurredAt:
+          type: string
+          format: date-time
+        quantity:
+          type: integer
+          format: int32
+        reason:
+          type:
+          - string
+          - "null"
+        reference:
+          oneOf:
+          - $ref: "#/components/schemas/ReferenceView"
+          - type: "null"
+        sku:
+          type: string
+        toLocation:
+          type:
+          - string
+          - "null"
+        type:
+          type: string
+          enum:
+          - RECEIPT
+          - PICK
+          - MOVE
+          - ADJUST
+          - COUNT_VARIANCE
+      required:
+      - actor
+      - id
+      - occurredAt
+      - quantity
+      - sku
+      - type
     ZoneView:
       type: object
       properties:

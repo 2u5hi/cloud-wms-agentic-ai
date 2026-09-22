@@ -1,5 +1,7 @@
 package com.cloudwms.core.inventory;
 
+import java.util.Optional;
+
 import com.cloudwms.core.inventory.domain.InventoryBalance;
 import com.cloudwms.core.inventory.domain.InventoryMovement;
 import com.cloudwms.core.inventory.domain.StockKey;
@@ -15,6 +17,14 @@ class InventoryRepository {
 
 	InventoryRepository(JdbcClient jdbc) {
 		this.jdbc = jdbc;
+	}
+
+	Optional<Long> findLocationId(String code) {
+		return jdbc.sql("SELECT id FROM location WHERE code = ?").param(code).query(Long.class).optional();
+	}
+
+	Optional<Long> findSkuId(String code) {
+		return jdbc.sql("SELECT id FROM sku WHERE code = ?").param(code).query(Long.class).optional();
 	}
 
 	boolean locationExists(long locationId) {

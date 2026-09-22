@@ -1,12 +1,19 @@
 package com.cloudwms.core.inventory.api;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
+import com.cloudwms.core.inventory.api.InventoryViews.ActorView;
 import com.cloudwms.core.inventory.api.InventoryViews.BalanceView;
 import com.cloudwms.core.inventory.api.InventoryViews.LocationTypeAvailability;
 import com.cloudwms.core.inventory.api.InventoryViews.Quantities;
+import com.cloudwms.core.inventory.api.InventoryViews.ReferenceView;
 import com.cloudwms.core.inventory.api.InventoryViews.SkuAvailabilityView;
+import com.cloudwms.core.inventory.api.InventoryViews.TransactionView;
+import com.cloudwms.core.inventory.domain.ActorType;
+import com.cloudwms.core.inventory.domain.InventoryTxnType;
 import com.cloudwms.core.inventory.domain.LocationType;
 import com.cloudwms.core.shared.api.Cursor;
 import com.cloudwms.core.shared.api.Page;
@@ -90,6 +97,72 @@ class InventoryQueries {
 		int onHand = byType.stream().mapToInt(LocationTypeAvailability::onHand).sum();
 		int allocated = byType.stream().mapToInt(LocationTypeAvailability::allocated).sum();
 		return Optional.of(new SkuAvailabilityView(skuCode, new Quantities(onHand, allocated, onHand - allocated), byType));
+	}
+
+	private static final String TRANSACTION_SELECT = """
+			SELECT t.id, t.type, s.code AS sku, lf.code AS from_location, lt.code AS to_location, t.quantity,
+			       t.reason, t.reference_type, t.reference_id, t.actor_type, t.actor_id, t.occurred_at
+			FROM inventory_txn t
+			JOIN sku s ON s.id = t.sku_id
+			LEFT JOIN location lf ON lf.id = t.from_location_id
+			LEFT JOIN location lt ON lt.id = t.to_location_id
+			""";
+
+	/** Ledger entries newest first. The cursor is the last id seen; the next page continues below it. */
+	Page<TransactionView> transactions(TransactionFilter filter, String cursor, int limit) {
+		long before = Cursor.decode(cursor);
+		List<TransactionView> rows = jdbc.sql(TRANSACTION_SELECT + """
+				WHERE (:before = 0 OR t.id < :before)
+				  AND (:sku IS NULL OR s.code = :sku)
+				  AND (:location IS NULL OR lf.code = :location OR lt.code = :location)
+				  AND (:type IS NULL OR t.type = :type)
+				ORDER BY t.id DESC
+				LIMIT :limit""")
+			.param("before", before)
+			.param("sku", filter.sku())
+			.param("location", filter.location())
+			.param("type", filter.type() == null ? null : filter.type().name())
+			.param("limit", limit + 1)
+			.query((rs, n) -> transaction(rs))
+			.list();
+		return Cursor.page(rows, limit, TransactionView::id, view -> view);
+	}
+
+	Optional<TransactionView> transaction(long id) {
+		return jdbc.sql(TRANSACTION_SELECT + "WHERE t.id = ?").param(id).query((rs, n) -> transaction(rs)).optional();
+	}
+
+	/** Current balances for the given (location id, SKU id) pairs, in the order given. */
+	List<BalanceView> balancesAt(List<long[]> keys) {
+		return keys.stream()
+			.map(key -> jdbc.sql("""
+					SELECT l.code AS location, z.code AS zone, l.type AS location_type, s.code AS sku, b.on_hand,
+					       b.allocated
+					FROM inventory_balance b
+					JOIN location l ON l.id = b.location_id
+					JOIN zone z ON z.id = l.zone_id
+					JOIN sku s ON s.id = b.sku_id
+					WHERE b.location_id = ? AND b.sku_id = ?""")
+				.params(key[0], key[1])
+				.query((rs, n) -> new BalanceView(rs.getString("location"), rs.getString("zone"),
+						LocationType.valueOf(rs.getString("location_type")), rs.getString("sku"), rs.getInt("on_hand"),
+						rs.getInt("allocated"), rs.getInt("on_hand") - rs.getInt("allocated")))
+				.single())
+			.toList();
+	}
+
+	private static TransactionView transaction(ResultSet rs) throws SQLException {
+		String referenceType = rs.getString("reference_type");
+		ReferenceView reference = referenceType == null ? null
+				: new ReferenceView(referenceType, rs.getString("reference_id"));
+		return new TransactionView(rs.getLong("id"), InventoryTxnType.valueOf(rs.getString("type")),
+				rs.getString("sku"), rs.getString("from_location"), rs.getString("to_location"), rs.getInt("quantity"),
+				rs.getString("reason"), reference,
+				new ActorView(ActorType.valueOf(rs.getString("actor_type")), rs.getString("actor_id")),
+				rs.getTimestamp("occurred_at").toInstant());
+	}
+
+	record TransactionFilter(String sku, String location, InventoryTxnType type) {
 	}
 
 	record BalanceFilter(String sku, String location, String zone, LocationType type, boolean includeEmpty) {
