@@ -15,6 +15,10 @@ spring:
       # READ COMMITTED avoids InnoDB gap locks, which deadlock concurrent inserts of overlapping keys.
       # Correctness relies on explicit row locks (SELECT ... FOR UPDATE), which behave the same. See ADR 0016.
       transaction-isolation: TRANSACTION_READ_COMMITTED
+      data-source-properties:
+        # The server runs in UTC. Without this, Connector/J converts between the server's timestamps and the
+        # JVM's local time zone, shifting every stored and read timestamp by the local UTC offset. See ADR 0018.
+        connectionTimeZone: UTC
   flyway:
     locations: classpath:db/migration
 

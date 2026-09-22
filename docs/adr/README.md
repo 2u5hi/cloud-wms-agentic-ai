@@ -21,3 +21,4 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0015](0015-console-state-in-the-url.md) | Console filters live in the URL; plain tables until client-side features are needed | Frontend |
 | [0016](0016-host-order-import.md) | Host order import: each order succeeds or fails on its own; resends are duplicates | Integration |
 | [0017](0017-read-committed-and-lock-conflicts.md) | READ COMMITTED isolation; deadlocks become a retryable 503 | Concurrency |
+| [0018](0018-timestamps-in-utc.md) | Timestamps are UTC end to end; tests run outside UTC to catch time zone bugs | Persistence |
