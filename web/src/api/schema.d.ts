@@ -431,7 +431,10 @@ export interface operations {
     recordAdjustment: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -455,7 +458,10 @@ export interface operations {
     recordMove: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -479,7 +485,10 @@ export interface operations {
     recordReceipt: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };

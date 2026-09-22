@@ -138,6 +138,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			case NOT_FOUND -> HttpStatus.NOT_FOUND;
 			case INVALID_STATE_TRANSITION, VERSION_CONFLICT, INSUFFICIENT_INVENTORY -> HttpStatus.CONFLICT;
 			case PRECONDITION_FAILED -> HttpStatus.PRECONDITION_FAILED;
+			case IDEMPOTENCY_KEY_REUSED -> HttpStatus.UNPROCESSABLE_CONTENT;
 			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
 		};
 	}

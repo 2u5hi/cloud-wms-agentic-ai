@@ -79,6 +79,16 @@ paths:
       description: "A signed correction with a mandatory reason, e.g. -4 for damaged\
         \ units."
       operationId: recordAdjustment
+      parameters:
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
       requestBody:
         content:
           application/json:
@@ -100,6 +110,16 @@ paths:
       description: For example replenishment from reserve to forward-pick. All or
         nothing.
       operationId: recordMove
+      parameters:
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
       requestBody:
         content:
           application/json:
@@ -119,6 +139,16 @@ paths:
   /api/v1/inventory/receipts:
     post:
       operationId: recordReceipt
+      parameters:
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
       requestBody:
         content:
           application/json:

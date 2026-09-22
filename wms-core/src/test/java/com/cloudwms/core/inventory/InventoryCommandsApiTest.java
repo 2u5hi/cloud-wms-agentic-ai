@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.cloudwms.core.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
@@ -193,6 +194,7 @@ class InventoryCommandsApiTest {
 	private ResultActions post(String path, String json) throws Exception {
 		return mockMvc
 			.perform(MockMvcRequestBuilders.post(path)
+				.header("Idempotency-Key", UUID.randomUUID().toString())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(json));
 	}
