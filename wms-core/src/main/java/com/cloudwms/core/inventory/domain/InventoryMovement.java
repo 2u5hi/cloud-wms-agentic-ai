@@ -3,6 +3,7 @@ package com.cloudwms.core.inventory.domain;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * One ledger entry: a quantity of a SKU leaving {@code fromLocationId} and/or arriving at
@@ -73,6 +74,16 @@ public record InventoryMovement(InventoryTxnType type, long skuId, Long fromLoca
 			effects.add(new StockDelta(new StockKey(toLocationId, skuId), quantity));
 		}
 		return List.copyOf(effects);
+	}
+
+	/**
+	 * Computes the balances after this movement, all or nothing: if any location lacks available stock,
+	 * this throws before returning anything, so a move never removes stock without also adding it.
+	 *
+	 * @param current the balance at a location before the movement (an empty balance if none exists)
+	 */
+	public List<InventoryBalance> applyTo(Function<StockKey, InventoryBalance> current) {
+		return effects().stream().map(change -> current.apply(change.key()).apply(change)).toList();
 	}
 
 	private static InventoryMovement correction(InventoryTxnType type, long skuId, long locationId, int delta,
