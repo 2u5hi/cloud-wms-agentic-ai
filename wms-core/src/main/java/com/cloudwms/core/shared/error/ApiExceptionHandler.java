@@ -35,7 +35,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	ResponseEntity<ProblemDetail> handleDomain(DomainException ex, HttpServletRequest request) {
 		ProblemDetail problem = problem(ex.code(), ex.getMessage(), request.getRequestURI());
 		ex.properties().forEach(problem::setProperty);
-		return ResponseEntity.status(ex.code().status()).body(problem);
+		return ResponseEntity.status(statusOf(ex.code())).body(problem);
 	}
 
 	@ExceptionHandler(Exception.class)
@@ -88,12 +88,23 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	private static ProblemDetail problem(ErrorCode code, String detail, String path) {
-		ProblemDetail problem = ProblemDetail.forStatusAndDetail(code.status(), detail);
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(statusOf(code), detail);
 		problem.setType(code.type());
 		problem.setTitle(code.title());
 		problem.setInstance(URI.create(path));
 		problem.setProperty("code", code.name());
 		return problem;
+	}
+
+	/** Exhaustive on purpose: adding an ErrorCode without choosing its HTTP status won't compile. */
+	static HttpStatus statusOf(ErrorCode code) {
+		return switch (code) {
+			case VALIDATION_FAILED -> HttpStatus.BAD_REQUEST;
+			case NOT_FOUND -> HttpStatus.NOT_FOUND;
+			case INVALID_STATE_TRANSITION, VERSION_CONFLICT, INSUFFICIENT_INVENTORY -> HttpStatus.CONFLICT;
+			case PRECONDITION_FAILED -> HttpStatus.PRECONDITION_FAILED;
+			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+		};
 	}
 
 	private static String codeFor(HttpStatusCode statusCode) {
