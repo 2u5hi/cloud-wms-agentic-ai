@@ -7,9 +7,73 @@ servers:
 - description: Local development
   url: http://localhost:8080
 tags:
+- description: Stock by location and SKU
+  name: Inventory
 - description: "Zones, locations, and SKUs"
   name: Master data
 paths:
+  /api/v1/inventory:
+    get:
+      description: Stock per location and SKU. Balances with nothing on hand or allocated
+        are omitted unless includeEmpty is true.
+      operationId: listBalances
+      parameters:
+      - in: query
+        name: sku
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: location
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: zone
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+          enum:
+          - FORWARD_PICK
+          - RESERVE
+          - STAGING
+          - PACK
+          - DOCK
+      - in: query
+        name: includeEmpty
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageBalanceView"
+          description: OK
+      summary: List inventory balances
+      tags:
+      - Inventory
   /api/v1/locations:
     get:
       description: Optionally filtered by zone code and location type.
@@ -122,6 +186,27 @@ paths:
       summary: Get a SKU
       tags:
       - Master data
+  /api/v1/skus/{code}/availability:
+    get:
+      description: "Totals across the warehouse, broken down by location type (forward-pick,\
+        \ reserve, ...)."
+      operationId: getSkuAvailability
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SkuAvailabilityView"
+          description: OK
+      summary: Get a SKU's availability
+      tags:
+      - Inventory
   /api/v1/zones:
     get:
       operationId: listZones
@@ -152,6 +237,69 @@ paths:
       - Master data
 components:
   schemas:
+    BalanceView:
+      type: object
+      properties:
+        allocated:
+          type: integer
+          format: int32
+        available:
+          type: integer
+          format: int32
+        location:
+          type: string
+        locationType:
+          type: string
+          enum:
+          - FORWARD_PICK
+          - RESERVE
+          - STAGING
+          - PACK
+          - DOCK
+        onHand:
+          type: integer
+          format: int32
+        sku:
+          type: string
+        zone:
+          type: string
+      required:
+      - allocated
+      - available
+      - location
+      - locationType
+      - onHand
+      - sku
+      - zone
+    LocationTypeAvailability:
+      type: object
+      properties:
+        allocated:
+          type: integer
+          format: int32
+        available:
+          type: integer
+          format: int32
+        locationType:
+          type: string
+          enum:
+          - FORWARD_PICK
+          - RESERVE
+          - STAGING
+          - PACK
+          - DOCK
+        locations:
+          type: integer
+          format: int32
+        onHand:
+          type: integer
+          format: int32
+      required:
+      - allocated
+      - available
+      - locationType
+      - locations
+      - onHand
     LocationView:
       type: object
       properties:
@@ -195,6 +343,20 @@ components:
       - code
       - type
       - zone
+    PageBalanceView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BalanceView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
     PageLocationView:
       type: object
       properties:
@@ -252,6 +414,37 @@ components:
       - maxQty
       - minQty
       - sku
+    Quantities:
+      type: object
+      properties:
+        allocated:
+          type: integer
+          format: int32
+        available:
+          type: integer
+          format: int32
+        onHand:
+          type: integer
+          format: int32
+      required:
+      - allocated
+      - available
+      - onHand
+    SkuAvailabilityView:
+      type: object
+      properties:
+        byLocationType:
+          type: array
+          items:
+            $ref: "#/components/schemas/LocationTypeAvailability"
+        sku:
+          type: string
+        total:
+          $ref: "#/components/schemas/Quantities"
+      required:
+      - byLocationType
+      - sku
+      - total
     SkuView:
       type: object
       properties:

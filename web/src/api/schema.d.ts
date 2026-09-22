@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List inventory balances
+         * @description Stock per location and SKU. Balances with nothing on hand or allocated are omitted unless includeEmpty is true.
+         */
+        get: operations["listBalances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations": {
         parameters: {
             query?: never;
@@ -78,6 +98,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/skus/{code}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a SKU's availability
+         * @description Totals across the warehouse, broken down by location type (forward-pick, reserve, ...).
+         */
+        get: operations["getSkuAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/zones": {
         parameters: {
             query?: never;
@@ -99,6 +139,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BalanceView: {
+            /** Format: int32 */
+            allocated: number;
+            /** Format: int32 */
+            available: number;
+            location: string;
+            /** @enum {string} */
+            locationType: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
+            /** Format: int32 */
+            onHand: number;
+            sku: string;
+            zone: string;
+        };
+        LocationTypeAvailability: {
+            /** Format: int32 */
+            allocated: number;
+            /** Format: int32 */
+            available: number;
+            /** @enum {string} */
+            locationType: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
+            /** Format: int32 */
+            locations: number;
+            /** Format: int32 */
+            onHand: number;
+        };
         LocationView: {
             active: boolean;
             /** Format: int32 */
@@ -116,6 +181,11 @@ export interface components {
             /** @enum {string} */
             type: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
             zone: string;
+        };
+        PageBalanceView: {
+            items: components["schemas"]["BalanceView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
         };
         PageLocationView: {
             items: components["schemas"]["LocationView"][];
@@ -139,6 +209,19 @@ export interface components {
             minQty: number;
             sku: string;
         };
+        Quantities: {
+            /** Format: int32 */
+            allocated: number;
+            /** Format: int32 */
+            available: number;
+            /** Format: int32 */
+            onHand: number;
+        };
+        SkuAvailabilityView: {
+            byLocationType: components["schemas"]["LocationTypeAvailability"][];
+            sku: string;
+            total: components["schemas"]["Quantities"];
+        };
         SkuView: {
             active: boolean;
             code: string;
@@ -160,6 +243,34 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listBalances: {
+        parameters: {
+            query?: {
+                sku?: string;
+                location?: string;
+                zone?: string;
+                type?: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
+                includeEmpty?: boolean;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageBalanceView"];
+                };
+            };
+        };
+    };
     listLocations: {
         parameters: {
             query?: {
@@ -248,6 +359,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SkuView"];
+                };
+            };
+        };
+    };
+    getSkuAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SkuAvailabilityView"];
                 };
             };
         };
