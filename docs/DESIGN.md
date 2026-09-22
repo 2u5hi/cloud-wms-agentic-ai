@@ -189,7 +189,7 @@ in practice: consultants configure rules, and extensions are for what configurat
 
 | Layer | Choice | Why |
 |---|---|---|
-| Core service | **Java 21 + Spring Boot 3** (Gradle, Kotlin DSL) | Matches Manhattan's Java/Spring stack. Virtual threads mean plain blocking code with no async complexity |
+| Core service | **Java 21 + Spring Boot 4** (Maven) | Matches Manhattan's Java/Spring stack. Virtual threads mean plain blocking code with no async complexity |
 | Persistence | **Spring Data JPA** for aggregates + `JdbcTemplate` for locking-sensitive queries | JPA is standard in Spring shops. Raw SQL keeps `FOR UPDATE SKIP LOCKED` explicit |
 | Migrations | **Flyway** (plain `.sql`) | |
 | Database | **MySQL 8** (InnoDB) | Same engine as Manhattan's Cloud SQL. Supports `SKIP LOCKED`, `JSON`, `CHECK` constraints |
@@ -208,7 +208,7 @@ in practice: consultants configure rules, and extensions are for what configurat
 ### 2.6 Repo layout
 
 ```
-wms-core/            Java 21 + Spring Boot (Gradle)
+wms-core/            Java 21 + Spring Boot (Maven)
   src/main/java/.../
     configuration/  inventory/  orders/  waves/  tasks/  workers/
     alerts/  proposals/  integration/  events/  shared/

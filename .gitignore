@@ -13,10 +13,15 @@ Thumbs.db
 *.pem
 *.key
 
-# Java / Gradle
-.gradle/
+# Java / Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
 build/
 out/
+.classpath
+.project
+.settings/
+.factorypath
 *.class
 hs_err_pid*
 
