@@ -80,6 +80,17 @@ class WavesController {
 		return queries.waves(status, cursor, limit);
 	}
 
+	@GetMapping("/{number}/diagnosis")
+	@Operation(operationId = "diagnoseWave", summary = "Why a wave is not finishing",
+			description = "Structured blockers with their root cause: picks waiting on a replenishment nobody "
+					+ "available is certified for, units no stock could cover, and orders close to their cutoff.")
+	WaveViews.WaveDiagnosisView diagnosis(@PathVariable long number,
+			@RequestParam(defaultValue = "4") @Min(1) @Max(72) int atRiskWithinHours) {
+		return queries.diagnose(number, atRiskWithinHours)
+			.orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "Wave %d does not exist".formatted(number),
+					Map.of("wave", number)));
+	}
+
 	@GetMapping("/{number}")
 	@Operation(operationId = "getWave", summary = "Get a wave with its orders and task counts")
 	WaveView wave(@PathVariable long number) {

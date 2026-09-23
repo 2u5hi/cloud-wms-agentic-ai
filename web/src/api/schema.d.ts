@@ -414,6 +414,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/waves/{number}/diagnosis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Why a wave is not finishing
+         * @description Structured blockers with their root cause: picks waiting on a replenishment nobody available is certified for, units no stock could cover, and orders close to their cutoff.
+         */
+        get: operations["diagnoseWave"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/waves/{number}/release": {
         parameters: {
             query?: never;
@@ -525,6 +545,13 @@ export interface components {
             reason: string;
             sku: string;
         };
+        AtRiskOrderView: {
+            /** Format: date-time */
+            carrierCutoffAt: string;
+            order: string;
+            /** Format: int32 */
+            remainingPicks: number;
+        };
         BalanceView: {
             /** Format: int32 */
             allocated: number;
@@ -537,6 +564,22 @@ export interface components {
             onHand: number;
             sku: string;
             zone: string;
+        };
+        Blocker: {
+            /** Format: int32 */
+            affectedOrders: number;
+            /** Format: int32 */
+            affectedPicks: number;
+            detail: string;
+            /** @enum {string} */
+            kind: "WAITING_ON_REPLENISHMENT" | "SHORT_ALLOCATED";
+            orders: string[];
+            /** Format: int32 */
+            quantity: number;
+            replenishment: components["schemas"]["PendingReplenishment"];
+            /** @enum {string} */
+            rootCause: "NO_ELIGIBLE_WORKER_AVAILABLE" | "NOT_PICKED_UP" | "IN_PROGRESS" | "NO_STOCK_AVAILABLE";
+            sku: string;
         };
         CreateWorkerRequest: {
             code: string;
@@ -731,6 +774,38 @@ export interface components {
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
+        PendingReplenishment: {
+            /** Format: int32 */
+            affectedOrders: number;
+            /** Format: int64 */
+            ageMinutes: number;
+            assignedWorker: string;
+            fromLocation: string;
+            /** Format: int32 */
+            quantity: number;
+            requiredEquipment: string;
+            sku: string;
+            status: string;
+            /** Format: int64 */
+            taskId: number;
+            toLocation: string;
+            /** Format: int32 */
+            waitingPicks: number;
+        };
+        PickCounts: {
+            /** Format: int32 */
+            assigned: number;
+            /** Format: int32 */
+            completed: number;
+            /** Format: int32 */
+            inProgress: number;
+            /** Format: int32 */
+            ready: number;
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            waiting: number;
+        };
         PickSlotView: {
             /** Format: int32 */
             maxQty: number;
@@ -873,6 +948,16 @@ export interface components {
             toLocation?: string | null;
             /** @enum {string} */
             type: "RECEIPT" | "PICK" | "MOVE" | "ADJUST" | "COUNT_VARIANCE";
+        };
+        WaveDiagnosisView: {
+            atRiskOrders: components["schemas"]["AtRiskOrderView"][];
+            blockers: components["schemas"]["Blocker"][];
+            /** Format: int32 */
+            orders: number;
+            picks: components["schemas"]["PickCounts"];
+            status: string;
+            /** Format: int64 */
+            wave: number;
         };
         WaveOrderView: {
             /** Format: date-time */
@@ -1478,6 +1563,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["WaveView"];
+                };
+            };
+        };
+    };
+    diagnoseWave: {
+        parameters: {
+            query?: {
+                atRiskWithinHours?: number;
+            };
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WaveDiagnosisView"];
                 };
             };
         };

@@ -15,11 +15,12 @@ Done and on `main`:
 | Foundation | Docker Compose (MySQL 8.4, Pub/Sub emulator), CI for `wms-core` and `web`, problem+json errors, OpenAPI contract with drift check, generated TypeScript client |
 | Inventory | Schema with database-enforced invariants, append-only ledger, pure domain, property tests, ordered row locking, master data / balance / availability / command / ledger APIs, idempotency keys, dev seed (1,224 locations, 300 SKUs), inventory page |
 | Orders | Order model (holds as a flag), host import with per-order results, order reads |
+| Waves and tasks | Planning with allocation and replenishment, worker claims and task execution, deterministic wave diagnosis (MVP commits 1-3) |
 | Platform | READ COMMITTED isolation, retryable 503 on lock conflicts, UTC timestamps end to end |
-| Docs | 18 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
-| Tests | 131 backend, 12 web |
+| Docs | 22 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
+| Tests | 165 backend, 12 web |
 
-Remaining for the MVP: wave planning, light execution, diagnosis, three console pages, the agent, the demo scenario, and deployment.
+Remaining for the MVP: three console pages, the agent, the demo scenario, and deployment (commits 4-7 below).
 
 ---
 
@@ -48,9 +49,9 @@ Each is one commit, with tests, docs (ADR when a decision is made), and a short 
 
 | # | Commit | Contents | Done when |
 |---|---|---|---|
-| 1 | `feat(waves): plan waves with allocation and replenishment` | V4 migration (`wave`, `wave_order`, `allocation`, `task`), pure allocation planner, `POST /api/v1/waves/plan` (with `preview=true`), `POST /waves/{n}/release`, `POST /waves/{n}/cancel`, `GET /waves`, `GET /waves/{n}` | A wave plans against seeded stock: pick tasks for available stock, replenishment tasks where forward-pick is short, picks marked `WAITING` on their replenishment; a concurrent-planning test shows no double allocation |
-| 2 | `feat(tasks): worker assignment and task execution` | V5 (`worker`, `worker_equipment`), `POST /workers/{code}/next-task` (`SKIP LOCKED`), `POST /tasks/{id}/start` / `/complete` / `/reassign`, replenishment completion releases dependent picks | 50 concurrent claims never hand out the same task; completing a replenishment moves its picks to `READY` |
-| 3 | `feat(waves): diagnose blocked waves` | `GET /waves/{n}/diagnosis` — counts by task state, blockers with root cause (`WAITING_ON_REPLENISHMENT`, `NO_ELIGIBLE_WORKER_AVAILABLE`, `SHORT_ALLOCATED`), affected orders and SKUs | The demo scenario returns the blocker with the reach-truck reason and the reserve quantity available |
+| 1 ✅ | `feat(waves): plan waves with allocation and replenishment` | V4 migration (`wave`, `wave_order`, `allocation`, `task`), pure allocation planner, `POST /api/v1/waves/plan` (with `preview=true`), `POST /waves/{n}/release`, `POST /waves/{n}/cancel`, `GET /waves`, `GET /waves/{n}` | A wave plans against seeded stock: pick tasks for available stock, replenishment tasks where forward-pick is short, picks marked `WAITING` on their replenishment; a concurrent-planning test shows no double allocation |
+| 2 ✅ | `feat(tasks): worker assignment and task execution` | V5 (`worker`, `worker_equipment`), `POST /workers/{code}/next-task` (`SKIP LOCKED`), `POST /tasks/{id}/start` / `/complete` / `/reassign`, replenishment completion releases dependent picks | 50 concurrent claims never hand out the same task; completing a replenishment moves its picks to `READY` |
+| 3 ✅ | `feat(waves): diagnose blocked waves` | `GET /waves/{n}/diagnosis` — counts by task state, blockers with root cause (`WAITING_ON_REPLENISHMENT`, `NO_ELIGIBLE_WORKER_AVAILABLE`, `SHORT_ALLOCATED`), affected orders and SKUs | The demo scenario returns the blocker with the reach-truck reason and the reserve quantity available |
 | 4 | `feat(web): orders, waves, and tasks pages` | Three pages in the existing shell, wave detail showing the diagnosis, a Plan Wave action | A blocked wave is visible and explained in the browser |
 | 5 | `feat(agent): investigate and propose fixes` | `ops-agent` (FastAPI + Anthropic SDK), read tools over the public API, grounded answer with evidence, `POST /proposals` in core, approve/reject, execution through the same commands; Haiku default, token and daily budget caps, passcode-protected | "Why is wave N blocked?" returns an explanation citing tool results plus a proposal; approving it creates the replenishment or reassigns the task, and the wave unblocks |
 | 6 | `feat(devdata): seed the demo scenario` | Orders on the seeded warehouse, one wave planned into the blocked state, workers where only one has `REACH_TRUCK` and is busy | A fresh database reaches the demo state automatically under the `dev` profile |

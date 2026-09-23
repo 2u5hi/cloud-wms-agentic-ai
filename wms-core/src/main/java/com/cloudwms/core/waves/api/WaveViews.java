@@ -3,6 +3,7 @@ package com.cloudwms.core.waves.api;
 import java.time.Instant;
 import java.util.List;
 
+import com.cloudwms.core.waves.domain.WaveDiagnosis.Blocker;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -45,6 +46,17 @@ public final class WaveViews {
 
 	public record WaveView(long number, String status, Instant plannedAt, @Schema(nullable = true) Instant releasedAt,
 			int unitsAllocated, TaskCounts tasks, List<WaveOrderView> orders) {
+	}
+
+	public record PickCounts(int total, int waiting, int ready, int assigned, int inProgress, int completed) {
+	}
+
+	public record AtRiskOrderView(String order, Instant carrierCutoffAt, int remainingPicks) {
+	}
+
+	/** Why a wave is not finishing: structured enough for the agent to reason over without guessing. */
+	public record WaveDiagnosisView(long wave, String status, int orders, PickCounts picks, List<Blocker> blockers,
+			List<AtRiskOrderView> atRiskOrders) {
 	}
 
 }

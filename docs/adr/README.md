@@ -25,3 +25,4 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0019](0019-mvp-first-deployment.md) | Ship a deployed MVP first, then deepen; Railway + Vercel for now | Process |
 | [0020](0020-wave-planning.md) | Wave planning: promise stock where it sits; serialize planners with a row lock | Domain |
 | [0021](0021-claiming-and-completing-work.md) | Claiming work: ordered candidates with a conditional update; completion moves stock | Concurrency |
+| [0022](0022-deterministic-wave-diagnosis.md) | The engine diagnoses blockers; the agent explains them | Agent |

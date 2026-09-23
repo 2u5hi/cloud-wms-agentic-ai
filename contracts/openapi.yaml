@@ -733,6 +733,38 @@ paths:
       summary: Cancel a planned wave
       tags:
       - Waves
+  /api/v1/waves/{number}/diagnosis:
+    get:
+      description: "Structured blockers with their root cause: picks waiting on a\
+        \ replenishment nobody available is certified for, units no stock could cover,\
+        \ and orders close to their cutoff."
+      operationId: diagnoseWave
+      parameters:
+      - in: path
+        name: number
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: atRiskWithinHours
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 4
+          maximum: 72
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WaveDiagnosisView"
+          description: OK
+      summary: Why a wave is not finishing
+      tags:
+      - Waves
   /api/v1/waves/{number}/release:
     post:
       operationId: releaseWave
@@ -946,6 +978,21 @@ components:
       - quantity
       - reason
       - sku
+    AtRiskOrderView:
+      type: object
+      properties:
+        carrierCutoffAt:
+          type: string
+          format: date-time
+        order:
+          type: string
+        remainingPicks:
+          type: integer
+          format: int32
+      required:
+      - carrierCutoffAt
+      - order
+      - remainingPicks
     BalanceView:
       type: object
       properties:
@@ -980,6 +1027,50 @@ components:
       - onHand
       - sku
       - zone
+    Blocker:
+      type: object
+      properties:
+        affectedOrders:
+          type: integer
+          format: int32
+        affectedPicks:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        kind:
+          type: string
+          enum:
+          - WAITING_ON_REPLENISHMENT
+          - SHORT_ALLOCATED
+        orders:
+          type: array
+          items:
+            type: string
+        quantity:
+          type: integer
+          format: int32
+        replenishment:
+          $ref: "#/components/schemas/PendingReplenishment"
+        rootCause:
+          type: string
+          enum:
+          - NO_ELIGIBLE_WORKER_AVAILABLE
+          - NOT_PICKED_UP
+          - IN_PROGRESS
+          - NO_STOCK_AVAILABLE
+        sku:
+          type: string
+      required:
+      - affectedOrders
+      - affectedPicks
+      - detail
+      - kind
+      - orders
+      - quantity
+      - replenishment
+      - rootCause
+      - sku
     CreateWorkerRequest:
       type: object
       properties:
@@ -1502,6 +1593,76 @@ components:
           description: Opaque cursor for the next page; null on the last page
       required:
       - items
+    PendingReplenishment:
+      type: object
+      properties:
+        affectedOrders:
+          type: integer
+          format: int32
+        ageMinutes:
+          type: integer
+          format: int64
+        assignedWorker:
+          type: string
+        fromLocation:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+        requiredEquipment:
+          type: string
+        sku:
+          type: string
+        status:
+          type: string
+        taskId:
+          type: integer
+          format: int64
+        toLocation:
+          type: string
+        waitingPicks:
+          type: integer
+          format: int32
+      required:
+      - affectedOrders
+      - ageMinutes
+      - assignedWorker
+      - fromLocation
+      - quantity
+      - requiredEquipment
+      - sku
+      - status
+      - taskId
+      - toLocation
+      - waitingPicks
+    PickCounts:
+      type: object
+      properties:
+        assigned:
+          type: integer
+          format: int32
+        completed:
+          type: integer
+          format: int32
+        inProgress:
+          type: integer
+          format: int32
+        ready:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        waiting:
+          type: integer
+          format: int32
+      required:
+      - assigned
+      - completed
+      - inProgress
+      - ready
+      - total
+      - waiting
     PickSlotView:
       type: object
       properties:
@@ -1839,6 +2000,34 @@ components:
       - quantity
       - sku
       - type
+    WaveDiagnosisView:
+      type: object
+      properties:
+        atRiskOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/AtRiskOrderView"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Blocker"
+        orders:
+          type: integer
+          format: int32
+        picks:
+          $ref: "#/components/schemas/PickCounts"
+        status:
+          type: string
+        wave:
+          type: integer
+          format: int64
+      required:
+      - atRiskOrders
+      - blockers
+      - orders
+      - picks
+      - status
+      - wave
     WaveOrderView:
       type: object
       properties:
