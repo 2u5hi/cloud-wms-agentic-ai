@@ -9,6 +9,11 @@
 Status: **Living design.** Implementation decisions, with code references, are recorded in
 [`docs/adr/`](adr/README.md). This document is updated wherever the implementation departs from the plan.
 
+> **Current working plan: [`docs/MVP_PLAN.md`](MVP_PLAN.md).** A deployed demo comes first — wave planning,
+> a blocked wave, the agent's explanation and proposal, approval, execution. It supersedes the milestone
+> order in §10 until the MVP is live ([ADR 0019](adr/0019-mvp-first-deployment.md)); everything deferred is
+> listed there and comes back in the deepening phase.
+
 Changes since v1: Java/Spring Boot core, Python agent, MySQL (not Postgres), Google Pub/Sub (emulator locally),
 local-first on Docker and Kubernetes, configuration-driven rules, an automation (MHE) integration, a bidirectional
 host interface, and a consultant-style solution design document. See §13 for the reasoning.
@@ -640,6 +645,9 @@ Python processes that act as the warehouse floor, the host, and the sorter, **on
 ---
 
 ## 10. Milestones
+
+> Superseded until the MVP is live — see [`docs/MVP_PLAN.md`](MVP_PLAN.md). The milestones below remain the
+> plan for the deepening phase.
 Build the domain before the AI. An agent is only as good as the system underneath it, and a working WMS
 without AI already makes a strong portfolio piece.
 

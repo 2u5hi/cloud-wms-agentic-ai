@@ -4,7 +4,11 @@ A cloud-based warehouse management system with an AI operations agent built in. 
 
 Independent learning project, modeled on publicly documented WMS concepts. Not affiliated with any vendor.
 
-**Status:** in development. Inventory core is built. The plan is in [docs/DESIGN.md](docs/DESIGN.md), and decisions made along the way are in [docs/adr/](docs/adr/README.md).
+**Status:** in development. Inventory and orders are built; wave planning and the agent are next, then a deployed demo.
+
+- [docs/MVP_PLAN.md](docs/MVP_PLAN.md) — what ships first, and what is deliberately deferred
+- [docs/DESIGN.md](docs/DESIGN.md) — the full design
+- [docs/adr/](docs/adr/README.md) — decisions made along the way
 
 ## Architecture
 
