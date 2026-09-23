@@ -456,6 +456,12 @@ Why one write tool: the agent can't execute anything, so every write is a *propo
 proposal be an atomic plan that is approved or rejected as a unit.
 
 ### 5.4 Proposal lifecycle (human in the loop)
+
+> **As built (MVP, [ADR 0024](adr/0024-agent-proposes-wms-executes.md)):** the shape below is the target.
+> Shipped so far: one proposal kind (`REASSIGN_TASK`), validated on creation and executed in the approver's
+> transaction, with rationale, evidence and both actors recorded. Not yet: bundled command lists,
+> automatic preconditions, the dry-run `predicted_impact`, alerts, and the agent-run trace store — the
+> agent's own API is `POST /investigate`, which returns the answer, its evidence and the proposal it filed.
 ```
 agent calls propose_actions → POST /proposals
   → core validates commands against schemas and scopes

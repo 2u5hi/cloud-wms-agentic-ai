@@ -1,0 +1,48 @@
+name: ops-agent
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ops-agent/**"
+      - ".github/workflows/ops-agent.yml"
+  pull_request:
+    paths:
+      - "ops-agent/**"
+      - ".github/workflows/ops-agent.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-agent-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ops-agent
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: ops-agent/pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      # The model and wms-core are both stubbed, so no API key and no services are needed.
+      - name: Test
+        run: pytest -q

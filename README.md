@@ -4,7 +4,7 @@ A cloud-based warehouse management system with an AI operations agent built in. 
 
 Independent learning project, modeled on publicly documented WMS concepts. Not affiliated with any vendor.
 
-**Status:** in development. Inventory and orders are built; wave planning and the agent are next, then a deployed demo.
+**Status:** in development. Inventory, orders, wave planning, task execution, the console and the agent are built; the demo scenario and deployment are next.
 
 - [docs/MVP_PLAN.md](docs/MVP_PLAN.md) — what ships first, and what is deliberately deferred
 - [docs/DESIGN.md](docs/DESIGN.md) — the full design
@@ -55,3 +55,9 @@ cd web && npm install && npm run dev
 ```
 
 Console: http://localhost:5173
+
+The agent is optional; without it the console still shows the WMS's own diagnosis.
+
+```bash
+cd ops-agent && ANTHROPIC_API_KEY=... .venv/Scripts/python -m uvicorn ops_agent.api:app --app-dir src --port 8000
+```

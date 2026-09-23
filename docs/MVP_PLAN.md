@@ -17,11 +17,12 @@ Done and on `main`:
 | Orders | Order model (holds as a flag), host import with per-order results, order reads |
 | Waves and tasks | Planning with allocation and replenishment, worker claims and task execution, deterministic wave diagnosis (MVP commits 1-3) |
 | Console | Orders, Waves, Wave detail with the diagnosis and Plan/Release/Cancel, Tasks (MVP commit 4) |
+| Agent | `ops-agent` (FastAPI + Haiku), read tools over the public API, proposals approved in the console (MVP commit 5) |
 | Platform | READ COMMITTED isolation, retryable 503 on lock conflicts, UTC timestamps end to end |
-| Docs | 23 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
-| Tests | 166 backend, 19 web |
+| Docs | 24 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
+| Tests | 172 backend, 19 web, 14 agent |
 
-Remaining for the MVP: the agent, the demo scenario, and deployment (commits 5-7 below).
+Remaining for the MVP: the demo scenario and deployment (commits 6-7 below).
 
 ---
 
@@ -54,7 +55,7 @@ Each is one commit, with tests, docs (ADR when a decision is made), and a short 
 | 2 ✅ | `feat(tasks): worker assignment and task execution` | V5 (`worker`, `worker_equipment`), `POST /workers/{code}/next-task` (`SKIP LOCKED`), `POST /tasks/{id}/start` / `/complete` / `/reassign`, replenishment completion releases dependent picks | 50 concurrent claims never hand out the same task; completing a replenishment moves its picks to `READY` |
 | 3 ✅ | `feat(waves): diagnose blocked waves` | `GET /waves/{n}/diagnosis` — counts by task state, blockers with root cause (`WAITING_ON_REPLENISHMENT`, `NO_ELIGIBLE_WORKER_AVAILABLE`, `SHORT_ALLOCATED`), affected orders and SKUs | The demo scenario returns the blocker with the reach-truck reason and the reserve quantity available |
 | 4 ✅ | `feat(web): orders, waves, and tasks pages` | Three pages in the existing shell, wave detail showing the diagnosis, a Plan Wave action | A blocked wave is visible and explained in the browser |
-| 5 | `feat(agent): investigate and propose fixes` | `ops-agent` (FastAPI + Anthropic SDK), read tools over the public API, grounded answer with evidence, `POST /proposals` in core, approve/reject, execution through the same commands; Haiku default, token and daily budget caps, passcode-protected | "Why is wave N blocked?" returns an explanation citing tool results plus a proposal; approving it creates the replenishment or reassigns the task, and the wave unblocks |
+| 5 ✅ | `feat(agent): investigate and propose fixes` | `ops-agent` (FastAPI + Anthropic SDK), read tools over the public API, grounded answer with evidence, `POST /proposals` in core, approve/reject, execution through the same commands; Haiku default, token and daily budget caps, passcode-protected | "Why is wave N blocked?" returns an explanation citing tool results plus a proposal; approving it creates the replenishment or reassigns the task, and the wave unblocks |
 | 6 | `feat(devdata): seed the demo scenario` | Orders on the seeded warehouse, one wave planned into the blocked state, workers where only one has `REACH_TRUCK` and is busy | A fresh database reaches the demo state automatically under the `dev` profile |
 | 7 | `feat(deploy): containerize and deploy` | Dockerfiles for `wms-core` and `ops-agent`, Railway config, Vercel config and API rewrites, CORS, demo passcode, README with the live URL | The public URL shows the console, the demo scenario, and a working agent investigation |
 

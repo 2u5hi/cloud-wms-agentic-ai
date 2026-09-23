@@ -215,6 +215,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List proposals, oldest first */
+        get: operations["listProposals"];
+        put?: never;
+        /**
+         * Suggest a fix
+         * @description Records what should be done and why. Nothing changes in the warehouse until somebody approves it.
+         */
+        post: operations["createProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a proposal */
+        get: operations["getProposal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve and run a proposal
+         * @description Runs the proposed command as the approver. If the command fails nothing is changed and the proposal stays open.
+         */
+        post: operations["approveProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a proposal */
+        post: operations["rejectProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/skus": {
         parameters: {
             query?: never;
@@ -583,12 +658,39 @@ export interface components {
             rootCause: "NO_ELIGIBLE_WORKER_AVAILABLE" | "NOT_PICKED_UP" | "IN_PROGRESS" | "NO_STOCK_AVAILABLE";
             sku: string;
         };
+        CreateProposalRequest: {
+            /** @description What was read to reach this, one line each */
+            evidence: string[];
+            /** @enum {string} */
+            kind: "REASSIGN_TASK";
+            /**
+             * @description Arguments for the command, e.g. {"task": 42, "worker": "W-014"}
+             * @example {
+             *       "task": 42,
+             *       "worker": "W-014"
+             *     }
+             */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description Why, in operator language */
+            rationale: string;
+            /**
+             * Format: int64
+             * @description The wave this is about, when it is about one
+             */
+            wave?: number | null;
+        };
         CreateWorkerRequest: {
             code: string;
             /** @description Equipment certifications, e.g. REACH_TRUCK */
             equipment?: string[] | null;
             homeZone?: string | null;
             name: string;
+        };
+        DecisionRequest: {
+            /** @description Why it was approved or rejected */
+            note?: string | null;
         };
         FieldError: {
             field: string;
@@ -746,6 +848,11 @@ export interface components {
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
+        PageProposalView: {
+            items: components["schemas"]["ProposalView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
         PageSkuView: {
             items: components["schemas"]["SkuView"][];
             /** @description Opaque cursor for the next page; null on the last page */
@@ -832,6 +939,28 @@ export interface components {
              * @description How many orders the wave may cover; default 50
              */
             maxOrders?: number | null;
+        };
+        ProposalView: {
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: components["schemas"]["ActorView"];
+            /** Format: date-time */
+            decidedAt?: string | null;
+            decidedBy?: components["schemas"]["ActorView"] | null;
+            decisionNote?: string | null;
+            evidence: string[];
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "REASSIGN_TASK";
+            payload: {
+                [key: string]: unknown;
+            };
+            rationale: string;
+            /** @description PROPOSED, EXECUTED, REJECTED or FAILED */
+            status: string;
+            /** Format: int64 */
+            wave?: number | null;
         };
         Quantities: {
             /** Format: int32 */
@@ -1295,6 +1424,139 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["OrderView"];
+                };
+            };
+        };
+    };
+    listProposals: {
+        parameters: {
+            query?: {
+                wave?: number;
+                status?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageProposalView"];
+                };
+            };
+        };
+    };
+    createProposal: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Agent-Id"?: string;
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProposalView"];
+                };
+            };
+        };
+    };
+    getProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProposalView"];
+                };
+            };
+        };
+    };
+    approveProposal: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProposalView"];
+                };
+            };
+        };
+    };
+    rejectProposal: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProposalView"];
                 };
             };
         };

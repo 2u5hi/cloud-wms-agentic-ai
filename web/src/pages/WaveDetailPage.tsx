@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AgentPanel } from '@/features/agent/AgentPanel'
 import { useTasks } from '@/features/tasks/queries'
 import { advise, type Blocker } from '@/features/waves/blockers'
 import { useWave, useWaveCommand, useWaveDiagnosis } from '@/features/waves/queries'
@@ -93,6 +94,8 @@ export function WaveDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <AgentPanel wave={number} />
 
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">Orders</h3>

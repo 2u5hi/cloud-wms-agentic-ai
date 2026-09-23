@@ -17,6 +17,8 @@ tags:
   name: Host integration
 - description: Customer orders and their fulfilment status
   name: Orders
+- description: Fixes the agent suggests and a human approves
+  name: Proposals
 - description: "Zones, locations, and SKUs"
   name: Master data
 paths:
@@ -408,6 +410,170 @@ paths:
       summary: Get an order with its lines
       tags:
       - Orders
+  /api/v1/proposals:
+    get:
+      operationId: listProposals
+      parameters:
+      - in: query
+        name: wave
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageProposalView"
+          description: OK
+      summary: "List proposals, oldest first"
+      tags:
+      - Proposals
+    post:
+      description: Records what should be done and why. Nothing changes in the warehouse
+        until somebody approves it.
+      operationId: createProposal
+      parameters:
+      - in: header
+        name: X-Agent-Id
+        required: false
+        schema:
+          type: string
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProposalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProposalView"
+          description: Created
+      summary: Suggest a fix
+      tags:
+      - Proposals
+  /api/v1/proposals/{id}:
+    get:
+      operationId: getProposal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProposalView"
+          description: OK
+      summary: Get a proposal
+      tags:
+      - Proposals
+  /api/v1/proposals/{id}/approve:
+    post:
+      description: Runs the proposed command as the approver. If the command fails
+        nothing is changed and the proposal stays open.
+      operationId: approveProposal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProposalView"
+          description: OK
+      summary: Approve and run a proposal
+      tags:
+      - Proposals
+  /api/v1/proposals/{id}/reject:
+    post:
+      operationId: rejectProposal
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProposalView"
+          description: OK
+      summary: Reject a proposal
+      tags:
+      - Proposals
   /api/v1/skus:
     get:
       operationId: listSkus
@@ -1074,6 +1240,46 @@ components:
       - quantity
       - rootCause
       - sku
+    CreateProposalRequest:
+      type: object
+      properties:
+        evidence:
+          type: array
+          description: "What was read to reach this, one line each"
+          items:
+            type: string
+            maxLength: 500
+            minLength: 0
+          maxItems: 20
+          minItems: 0
+        kind:
+          type: string
+          enum:
+          - REASSIGN_TASK
+        payload:
+          type: object
+          additionalProperties: {}
+          description: "Arguments for the command, e.g. {\"task\": 42, \"worker\"\
+            : \"W-014\"}"
+          example:
+            task: 42
+            worker: W-014
+        rationale:
+          type: string
+          description: "Why, in operator language"
+          maxLength: 4000
+          minLength: 0
+        wave:
+          type:
+          - integer
+          - "null"
+          format: int64
+          description: "The wave this is about, when it is about one"
+      required:
+      - evidence
+      - kind
+      - payload
+      - rationale
     CreateWorkerRequest:
       type: object
       properties:
@@ -1101,6 +1307,16 @@ components:
       required:
       - code
       - name
+    DecisionRequest:
+      type: object
+      properties:
+        note:
+          type:
+          - string
+          - "null"
+          description: Why it was approved or rejected
+          maxLength: 500
+          minLength: 0
     FieldError:
       type: object
       properties:
@@ -1512,6 +1728,20 @@ components:
           description: Opaque cursor for the next page; null on the last page
       required:
       - items
+    PageProposalView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProposalView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
     PageSkuView:
       type: object
       properties:
@@ -1704,6 +1934,60 @@ components:
           description: How many orders the wave may cover; default 50
           maximum: 500
           minimum: 1
+    ProposalView:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: "#/components/schemas/ActorView"
+        decidedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        decidedBy:
+          oneOf:
+          - $ref: "#/components/schemas/ActorView"
+          - type: "null"
+        decisionNote:
+          type:
+          - string
+          - "null"
+        evidence:
+          type: array
+          items:
+            type: string
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - REASSIGN_TASK
+        payload:
+          type: object
+          additionalProperties: {}
+        rationale:
+          type: string
+        status:
+          type: string
+          description: "PROPOSED, EXECUTED, REJECTED or FAILED"
+        wave:
+          type:
+          - integer
+          - "null"
+          format: int64
+      required:
+      - createdAt
+      - createdBy
+      - evidence
+      - id
+      - kind
+      - payload
+      - rationale
+      - status
     Quantities:
       type: object
       properties:
