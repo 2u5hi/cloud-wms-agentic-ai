@@ -1027,7 +1027,7 @@ components:
       - onHand
       - sku
       - zone
-    Blocker:
+    BlockerView:
       type: object
       properties:
         affectedOrders:
@@ -1045,13 +1045,17 @@ components:
           - SHORT_ALLOCATED
         orders:
           type: array
+          description: Orders short of stock; empty on WAITING_ON_REPLENISHMENT
           items:
             type: string
         quantity:
           type: integer
           format: int32
         replenishment:
-          $ref: "#/components/schemas/PendingReplenishment"
+          description: Only on WAITING_ON_REPLENISHMENT
+          oneOf:
+          - $ref: "#/components/schemas/ReplenishmentView"
+          - type: "null"
         rootCause:
           type: string
           enum:
@@ -1068,7 +1072,6 @@ components:
       - kind
       - orders
       - quantity
-      - replenishment
       - rootCause
       - sku
     CreateWorkerRequest:
@@ -1593,48 +1596,6 @@ components:
           description: Opaque cursor for the next page; null on the last page
       required:
       - items
-    PendingReplenishment:
-      type: object
-      properties:
-        affectedOrders:
-          type: integer
-          format: int32
-        ageMinutes:
-          type: integer
-          format: int64
-        assignedWorker:
-          type: string
-        fromLocation:
-          type: string
-        quantity:
-          type: integer
-          format: int32
-        requiredEquipment:
-          type: string
-        sku:
-          type: string
-        status:
-          type: string
-        taskId:
-          type: integer
-          format: int64
-        toLocation:
-          type: string
-        waitingPicks:
-          type: integer
-          format: int32
-      required:
-      - affectedOrders
-      - ageMinutes
-      - assignedWorker
-      - fromLocation
-      - quantity
-      - requiredEquipment
-      - sku
-      - status
-      - taskId
-      - toLocation
-      - waitingPicks
     PickCounts:
       type: object
       properties:
@@ -1816,6 +1777,50 @@ components:
       required:
       - id
       - type
+    ReplenishmentView:
+      type: object
+      properties:
+        affectedOrders:
+          type: integer
+          format: int32
+        ageMinutes:
+          type: integer
+          format: int64
+        assignedWorker:
+          type:
+          - string
+          - "null"
+        fromLocation:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+        requiredEquipment:
+          type:
+          - string
+          - "null"
+        sku:
+          type: string
+        status:
+          type: string
+        taskId:
+          type: integer
+          format: int64
+        toLocation:
+          type: string
+        waitingPicks:
+          type: integer
+          format: int32
+      required:
+      - affectedOrders
+      - ageMinutes
+      - fromLocation
+      - quantity
+      - sku
+      - status
+      - taskId
+      - toLocation
+      - waitingPicks
     ShortageView:
       type: object
       properties:
@@ -2010,7 +2015,7 @@ components:
         blockers:
           type: array
           items:
-            $ref: "#/components/schemas/Blocker"
+            $ref: "#/components/schemas/BlockerView"
         orders:
           type: integer
           format: int32

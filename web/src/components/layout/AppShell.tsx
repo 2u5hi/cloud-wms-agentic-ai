@@ -1,4 +1,4 @@
-import { Boxes, LayoutDashboard, Warehouse } from 'lucide-react'
+import { Boxes, ClipboardList, LayoutDashboard, ListChecks, Waves, Warehouse } from 'lucide-react'
 import { NavLink, Outlet, useMatches } from 'react-router'
 
 import { ApiStatus } from '@/components/layout/ApiStatus'
@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 // Only pages that exist are listed here; entries are added as features are built.
 const navigation = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
+  { label: 'Orders', to: '/orders', icon: ClipboardList, end: false },
+  { label: 'Waves', to: '/waves', icon: Waves, end: false },
+  { label: 'Tasks', to: '/tasks', icon: ListChecks, end: false },
   { label: 'Inventory', to: '/inventory', icon: Boxes, end: false },
 ]
 

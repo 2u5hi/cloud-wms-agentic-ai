@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.List;
 
 import com.cloudwms.core.waves.domain.WaveDiagnosis.Blocker;
+import com.cloudwms.core.waves.domain.WaveDiagnosis.BlockerKind;
+import com.cloudwms.core.waves.domain.WaveDiagnosis.PendingReplenishment;
+import com.cloudwms.core.waves.domain.WaveDiagnosis.RootCause;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -54,8 +57,39 @@ public final class WaveViews {
 	public record AtRiskOrderView(String order, Instant carrierCutoffAt, int remainingPicks) {
 	}
 
+	public record ReplenishmentView(long taskId, String sku, String status, String fromLocation, String toLocation,
+			int quantity, @Schema(nullable = true) String requiredEquipment,
+			@Schema(nullable = true) String assignedWorker, long ageMinutes, int waitingPicks, int affectedOrders) {
+
+		static ReplenishmentView of(PendingReplenishment replenishment) {
+			return new ReplenishmentView(replenishment.taskId(), replenishment.sku(), replenishment.status(),
+					replenishment.fromLocation(), replenishment.toLocation(), replenishment.quantity(),
+					replenishment.requiredEquipment(), replenishment.assignedWorker(), replenishment.ageMinutes(),
+					replenishment.waitingPicks(), replenishment.affectedOrders());
+		}
+
+	}
+
+	/**
+	 * The domain blocker, with the optional parts marked optional. Clients are generated from this contract,
+	 * so a field that is sometimes null has to say so.
+	 */
+	public record BlockerView(BlockerKind kind, RootCause rootCause, String sku, int affectedPicks, int affectedOrders,
+			int quantity, String detail,
+			@Schema(nullable = true, description = "Only on WAITING_ON_REPLENISHMENT") ReplenishmentView replenishment,
+			@Schema(description = "Orders short of stock; empty on WAITING_ON_REPLENISHMENT") List<String> orders) {
+
+		public static BlockerView of(Blocker blocker) {
+			return new BlockerView(blocker.kind(), blocker.rootCause(), blocker.sku(), blocker.affectedPicks(),
+					blocker.affectedOrders(), blocker.quantity(), blocker.detail(),
+					blocker.replenishment() == null ? null : ReplenishmentView.of(blocker.replenishment()),
+					blocker.orders());
+		}
+
+	}
+
 	/** Why a wave is not finishing: structured enough for the agent to reason over without guessing. */
-	public record WaveDiagnosisView(long wave, String status, int orders, PickCounts picks, List<Blocker> blockers,
+	public record WaveDiagnosisView(long wave, String status, int orders, PickCounts picks, List<BlockerView> blockers,
 			List<AtRiskOrderView> atRiskOrders) {
 	}
 

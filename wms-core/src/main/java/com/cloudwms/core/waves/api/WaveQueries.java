@@ -192,8 +192,11 @@ class WaveQueries {
 			.param(waveId)
 			.query(Integer.class)
 			.single();
-		return Optional.of(new WaveDiagnosisView(waveId, status.get(), orders, picks,
-				WaveDiagnosis.diagnose(replenishments, shortLines, available), atRisk));
+		List<WaveViews.BlockerView> blockers = WaveDiagnosis.diagnose(replenishments, shortLines, available)
+			.stream()
+			.map(WaveViews.BlockerView::of)
+			.toList();
+		return Optional.of(new WaveDiagnosisView(waveId, status.get(), orders, picks, blockers, atRisk));
 	}
 
 	/** Shortages carry internal ids; clients see order and SKU codes. */

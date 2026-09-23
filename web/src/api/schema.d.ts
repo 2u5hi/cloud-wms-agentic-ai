@@ -565,7 +565,7 @@ export interface components {
             sku: string;
             zone: string;
         };
-        Blocker: {
+        BlockerView: {
             /** Format: int32 */
             affectedOrders: number;
             /** Format: int32 */
@@ -573,10 +573,12 @@ export interface components {
             detail: string;
             /** @enum {string} */
             kind: "WAITING_ON_REPLENISHMENT" | "SHORT_ALLOCATED";
+            /** @description Orders short of stock; empty on WAITING_ON_REPLENISHMENT */
             orders: string[];
             /** Format: int32 */
             quantity: number;
-            replenishment: components["schemas"]["PendingReplenishment"];
+            /** @description Only on WAITING_ON_REPLENISHMENT */
+            replenishment?: components["schemas"]["ReplenishmentView"] | null;
             /** @enum {string} */
             rootCause: "NO_ELIGIBLE_WORKER_AVAILABLE" | "NOT_PICKED_UP" | "IN_PROGRESS" | "NO_STOCK_AVAILABLE";
             sku: string;
@@ -774,24 +776,6 @@ export interface components {
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
-        PendingReplenishment: {
-            /** Format: int32 */
-            affectedOrders: number;
-            /** Format: int64 */
-            ageMinutes: number;
-            assignedWorker: string;
-            fromLocation: string;
-            /** Format: int32 */
-            quantity: number;
-            requiredEquipment: string;
-            sku: string;
-            status: string;
-            /** Format: int64 */
-            taskId: number;
-            toLocation: string;
-            /** Format: int32 */
-            waitingPicks: number;
-        };
         PickCounts: {
             /** Format: int32 */
             assigned: number;
@@ -876,6 +860,24 @@ export interface components {
             id: string;
             type: string;
         };
+        ReplenishmentView: {
+            /** Format: int32 */
+            affectedOrders: number;
+            /** Format: int64 */
+            ageMinutes: number;
+            assignedWorker?: string | null;
+            fromLocation: string;
+            /** Format: int32 */
+            quantity: number;
+            requiredEquipment?: string | null;
+            sku: string;
+            status: string;
+            /** Format: int64 */
+            taskId: number;
+            toLocation: string;
+            /** Format: int32 */
+            waitingPicks: number;
+        };
         ShortageView: {
             order: string;
             /** Format: int32 */
@@ -951,7 +953,7 @@ export interface components {
         };
         WaveDiagnosisView: {
             atRiskOrders: components["schemas"]["AtRiskOrderView"][];
-            blockers: components["schemas"]["Blocker"][];
+            blockers: components["schemas"]["BlockerView"][];
             /** Format: int32 */
             orders: number;
             picks: components["schemas"]["PickCounts"];
