@@ -16,6 +16,7 @@ public enum ErrorCode {
 	VERSION_CONFLICT("Version conflict"),
 	INSUFFICIENT_INVENTORY("Insufficient inventory"),
 	PRECONDITION_FAILED("Precondition failed"),
+	NOT_ELIGIBLE("Not eligible for this work"),
 	IDEMPOTENCY_KEY_REUSED("Idempotency key reused with a different request"),
 	CONCURRENCY_CONFLICT("Concurrent update conflict; retry the request"),
 	INTERNAL_ERROR("Internal error");

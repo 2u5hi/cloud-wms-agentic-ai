@@ -302,7 +302,8 @@ Order:  RECEIVED ⇄ ALLOCATED → RELEASED → PICKING → PICKED → PACKED �
 Wave:   PLANNED → RELEASED → IN_PROGRESS → COMPLETED;  PLANNED → CANCELLED
         (planning is serialized by a row lock; stock is promised where it sits, ADR 0020)
 
-Task:   CREATED → WAITING (dependency not done) → READY → ASSIGNED → IN_PROGRESS → COMPLETED
+Task:   WAITING (dependency not done) → READY → ASSIGNED → IN_PROGRESS → COMPLETED
+        (claims are ordered candidates + conditional update, equipment-gated; ADR 0021)
                                                     ↑__________|  (unassign / reassign)
         non-terminal → CANCELLED;  PICK in progress → SHORT_PICKED (exception)
 

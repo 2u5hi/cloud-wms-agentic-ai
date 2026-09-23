@@ -13,6 +13,7 @@ import com.cloudwms.core.inventory.domain.StockKey;
 import com.cloudwms.core.shared.error.DomainException;
 import com.cloudwms.core.shared.error.ErrorCode;
 import com.cloudwms.core.waves.WaveRepository.ActiveAllocation;
+import com.cloudwms.core.waves.WaveRepository.LocationInfo;
 import com.cloudwms.core.waves.WaveRepository.NewTask;
 import com.cloudwms.core.waves.domain.WavePlanner;
 import com.cloudwms.core.waves.domain.WavePlanner.PlannableLine;
@@ -98,6 +99,7 @@ public class WavePlanningService {
 
 		int pickTasks = 0;
 		int replenishmentTasks = 0;
+		Map<Long, LocationInfo> locations = new HashMap<>();
 		Map<Long, Integer> priorityByOrder = lines.stream()
 			.collect(Collectors.toMap(PlannableLine::orderId, PlannableLine::priority, Math::min));
 		for (PlannedSource source : plan.sources()) {
@@ -106,16 +108,19 @@ public class WavePlanningService {
 					source.stockLocationId(), source.quantity());
 			int priority = priorityByOrder.getOrDefault(source.orderId(), 3);
 			Long replenishTaskId = null;
+			LocationInfo pickLocation = locations.computeIfAbsent(source.pickLocationId(), repository::locationInfo);
 			if (source.needsReplenishment()) {
+				LocationInfo reserve = locations.computeIfAbsent(source.stockLocationId(), repository::locationInfo);
+				// A replenishment is worked in the zone it delivers to, and needs the source's equipment.
 				replenishTaskId = repository.insertTask(new NewTask("REPLENISH", "READY", priority, waveId, null, null,
-						source.skuId(), source.stockLocationId(), source.replenishTo(), source.quantity(), null, null,
-						repository.requiredEquipment(source.stockLocationId())));
+						source.skuId(), source.stockLocationId(), source.replenishTo(), source.quantity(),
+						pickLocation.zoneId(), pickLocation.pickSequence(), reserve.requiredEquipment()));
 				replenishmentTasks++;
 			}
 			// A pick that waits on replenishment is not workable until that stock arrives.
 			repository.insertTask(new NewTask("PICK", replenishTaskId == null ? "READY" : "WAITING", priority, waveId,
 					allocationId, replenishTaskId, source.skuId(), source.pickLocationId(), null, source.quantity(),
-					null, null, null));
+					pickLocation.zoneId(), pickLocation.pickSequence(), pickLocation.requiredEquipment()));
 			pickTasks++;
 		}
 

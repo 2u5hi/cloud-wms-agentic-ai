@@ -269,6 +269,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tasks */
+        get: operations["listTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a task */
+        get: operations["getTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete a task
+         * @description A replenishment moves the promised stock to its slot and frees the picks waiting on it. A pick takes the stock off the shelf and advances its order.
+         */
+        post: operations["completeTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/reassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a task to another worker */
+        post: operations["reassignTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/waves": {
         parameters: {
             query?: never;
@@ -360,6 +431,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List workers with their certifications */
+        get: operations["listWorkers"];
+        put?: never;
+        /**
+         * Add a worker
+         * @description Demo setup; workers would normally come from a labour management system.
+         */
+        post: operations["createWorker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a worker */
+        get: operations["getWorker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/{code}/next-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim the next task for a worker
+         * @description Returns the task now assigned to them, or 204 when there is nothing they can work on. Only tasks of released waves count, and only those whose equipment the worker is certified for. Pass zone to take work only from that zone.
+         */
+        post: operations["claimNextTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/zones": {
         parameters: {
             query?: never;
@@ -408,6 +537,13 @@ export interface components {
             onHand: number;
             sku: string;
             zone: string;
+        };
+        CreateWorkerRequest: {
+            code: string;
+            /** @description Equipment certifications, e.g. REACH_TRUCK */
+            equipment?: string[] | null;
+            homeZone?: string | null;
+            name: string;
         };
         FieldError: {
             field: string;
@@ -570,6 +706,11 @@ export interface components {
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
+        PageTaskView: {
+            items: components["schemas"]["TaskView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
         PageTransactionView: {
             items: components["schemas"]["TransactionView"][];
             /** @description Opaque cursor for the next page; null on the last page */
@@ -577,6 +718,11 @@ export interface components {
         };
         PageWaveSummaryView: {
             items: components["schemas"]["WaveSummaryView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
+        PageWorkerView: {
+            items: components["schemas"]["WorkerView"][];
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
@@ -636,6 +782,9 @@ export interface components {
             /** Format: int32 */
             onHand: number;
         };
+        ReassignRequest: {
+            worker: string;
+        };
         ReceiptRequest: {
             location: string;
             /** Format: int32 */
@@ -686,6 +835,28 @@ export interface components {
             total: number;
             /** Format: int32 */
             waiting: number;
+        };
+        TaskView: {
+            assignedWorker?: string | null;
+            fromLocation?: string | null;
+            /** Format: int64 */
+            id: number;
+            /** Format: int32 */
+            priority: number;
+            /** Format: int32 */
+            quantity: number;
+            requiredEquipment?: string | null;
+            sku: string;
+            status: string;
+            toLocation?: string | null;
+            type: string;
+            /**
+             * Format: int64
+             * @description The task this one waits for
+             */
+            waitingOnTask?: number | null;
+            /** Format: int64 */
+            wave?: number | null;
         };
         TransactionView: {
             actor: components["schemas"]["ActorView"];
@@ -742,6 +913,13 @@ export interface components {
             tasks: components["schemas"]["TaskCounts"];
             /** Format: int32 */
             unitsAllocated: number;
+        };
+        WorkerView: {
+            code: string;
+            equipment: string[];
+            homeZone?: string | null;
+            name: string;
+            status: string;
         };
         ZoneView: {
             code: string;
@@ -1101,6 +1279,109 @@ export interface operations {
             };
         };
     };
+    listTasks: {
+        parameters: {
+            query?: {
+                wave?: number;
+                status?: string;
+                type?: string;
+                worker?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageTaskView"];
+                };
+            };
+        };
+    };
+    getTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    completeTask: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    reassignTask: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
     listWaves: {
         parameters: {
             query?: {
@@ -1222,6 +1503,105 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["WaveView"];
+                };
+            };
+        };
+    };
+    listWorkers: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageWorkerView"];
+                };
+            };
+        };
+    };
+    createWorker: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkerRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WorkerView"];
+                };
+            };
+        };
+    };
+    getWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WorkerView"];
+                };
+            };
+        };
+    };
+    claimNextTask: {
+        parameters: {
+            query?: {
+                zone?: string;
+            };
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
                 };
             };
         };

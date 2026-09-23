@@ -9,6 +9,8 @@ servers:
 tags:
 - description: Stock by location and SKU
   name: Inventory
+- description: "Work on the floor: picks, replenishments, and who does them"
+  name: Tasks
 - description: Planning orders into waves of pick and replenishment work
   name: Waves
 - description: Inbound interface from the host system (ERP / order management)
@@ -474,6 +476,142 @@ paths:
       summary: Get a SKU's availability
       tags:
       - Inventory
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      parameters:
+      - in: query
+        name: wave
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: worker
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageTaskView"
+          description: OK
+      summary: List tasks
+      tags:
+      - Tasks
+  /api/v1/tasks/{id}:
+    get:
+      operationId: getTask
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskView"
+          description: OK
+      summary: Get a task
+      tags:
+      - Tasks
+  /api/v1/tasks/{id}/complete:
+    post:
+      description: A replenishment moves the promised stock to its slot and frees
+        the picks waiting on it. A pick takes the stock off the shelf and advances
+        its order.
+      operationId: completeTask
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskView"
+          description: OK
+      summary: Complete a task
+      tags:
+      - Tasks
+  /api/v1/tasks/{id}/reassign:
+    post:
+      operationId: reassignTask
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReassignRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskView"
+          description: OK
+      summary: Give a task to another worker
+      tags:
+      - Tasks
   /api/v1/waves:
     get:
       operationId: listWaves
@@ -624,6 +762,120 @@ paths:
       summary: Release a wave to the floor
       tags:
       - Waves
+  /api/v1/workers:
+    get:
+      operationId: listWorkers
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageWorkerView"
+          description: OK
+      summary: List workers with their certifications
+      tags:
+      - Tasks
+    post:
+      description: Demo setup; workers would normally come from a labour management
+        system.
+      operationId: createWorker
+      parameters:
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkerRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkerView"
+          description: Created
+      summary: Add a worker
+      tags:
+      - Tasks
+  /api/v1/workers/{code}:
+    get:
+      operationId: getWorker
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkerView"
+          description: OK
+      summary: Get a worker
+      tags:
+      - Tasks
+  /api/v1/workers/{code}/next-task:
+    post:
+      description: "Returns the task now assigned to them, or 204 when there is nothing\
+        \ they can work on. Only tasks of released waves count, and only those whose\
+        \ equipment the worker is certified for. Pass zone to take work only from\
+        \ that zone."
+      operationId: claimNextTask
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: zone
+        required: false
+        schema:
+          type: string
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TaskView"
+          description: OK
+      summary: Claim the next task for a worker
+      tags:
+      - Tasks
   /api/v1/zones:
     get:
       operationId: listZones
@@ -728,6 +980,33 @@ components:
       - onHand
       - sku
       - zone
+    CreateWorkerRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 30
+          minLength: 0
+        equipment:
+          type:
+          - array
+          - "null"
+          description: "Equipment certifications, e.g. REACH_TRUCK"
+          items:
+            type: string
+        homeZone:
+          type:
+          - string
+          - "null"
+          maxLength: 20
+          minLength: 0
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+      required:
+      - code
+      - name
     FieldError:
       type: object
       properties:
@@ -1153,6 +1432,20 @@ components:
           description: Opaque cursor for the next page; null on the last page
       required:
       - items
+    PageTaskView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
     PageTransactionView:
       type: object
       properties:
@@ -1174,6 +1467,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WaveSummaryView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
+    PageWorkerView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkerView"
         nextCursor:
           type:
           - string
@@ -1291,6 +1598,15 @@ components:
       - allocated
       - available
       - onHand
+    ReassignRequest:
+      type: object
+      properties:
+        worker:
+          type: string
+          maxLength: 30
+          minLength: 0
+      required:
+      - worker
     ReceiptRequest:
       type: object
       properties:
@@ -1424,6 +1740,58 @@ components:
       - ready
       - total
       - waiting
+    TaskView:
+      type: object
+      properties:
+        assignedWorker:
+          type:
+          - string
+          - "null"
+        fromLocation:
+          type:
+          - string
+          - "null"
+        id:
+          type: integer
+          format: int64
+        priority:
+          type: integer
+          format: int32
+        quantity:
+          type: integer
+          format: int32
+        requiredEquipment:
+          type:
+          - string
+          - "null"
+        sku:
+          type: string
+        status:
+          type: string
+        toLocation:
+          type:
+          - string
+          - "null"
+        type:
+          type: string
+        waitingOnTask:
+          type:
+          - integer
+          - "null"
+          format: int64
+          description: The task this one waits for
+        wave:
+          type:
+          - integer
+          - "null"
+          format: int64
+      required:
+      - id
+      - priority
+      - quantity
+      - sku
+      - status
+      - type
     TransactionView:
       type: object
       properties:
@@ -1563,6 +1931,28 @@ components:
       - status
       - tasks
       - unitsAllocated
+    WorkerView:
+      type: object
+      properties:
+        code:
+          type: string
+        equipment:
+          type: array
+          items:
+            type: string
+        homeZone:
+          type:
+          - string
+          - "null"
+        name:
+          type: string
+        status:
+          type: string
+      required:
+      - code
+      - equipment
+      - name
+      - status
     ZoneView:
       type: object
       properties:

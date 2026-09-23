@@ -58,6 +58,36 @@ public class InventoryService {
 		apply(quantities, InventoryBalance::allocate);
 	}
 
+	/**
+	 * Moves stock that is promised to orders, e.g. a replenishment from reserve to a forward-pick slot.
+	 * The promise travels with the stock: it is released at the source, moved, and re-promised at the
+	 * destination, all in one transaction, so {@code allocated <= on_hand} holds at both ends.
+	 */
+	@Transactional
+	public RecordedMovement moveAllocated(InventoryMovement move, int allocatedQuantity) {
+		StockKey from = new StockKey(requireLocation(move.fromLocationId(), "move"), move.skuId());
+		StockKey to = new StockKey(requireLocation(move.toLocationId(), "move"), move.skuId());
+		releaseAllocation(Map.of(from, allocatedQuantity));
+		RecordedMovement recorded = record(move);
+		allocate(Map.of(to, allocatedQuantity));
+		return recorded;
+	}
+
+	/** Takes promised stock off the shelf: the promise is consumed, then the stock leaves the location. */
+	@Transactional
+	public RecordedMovement pickAllocated(InventoryMovement pick) {
+		StockKey from = new StockKey(requireLocation(pick.fromLocationId(), "pick"), pick.skuId());
+		releaseAllocation(Map.of(from, pick.quantity()));
+		return record(pick);
+	}
+
+	private static long requireLocation(Long locationId, String action) {
+		if (locationId == null) {
+			throw new IllegalArgumentException("a " + action + " needs a location");
+		}
+		return locationId;
+	}
+
 	/** Gives promised stock back, e.g. when a wave is cancelled. */
 	@Transactional
 	public void releaseAllocation(Map<StockKey, Integer> quantities) {

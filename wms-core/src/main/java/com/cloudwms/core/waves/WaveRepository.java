@@ -137,13 +137,16 @@ class WaveRepository {
 			.update();
 	}
 
-	/** The equipment needed to reach a location, for replenishment tasks. */
-	String requiredEquipment(long locationId) {
-		return jdbc.sql("SELECT required_equipment FROM location WHERE id = ?")
+	/** Where a location sits and what it takes to reach it, used to shape the tasks. */
+	LocationInfo locationInfo(long locationId) {
+		return jdbc.sql("SELECT zone_id, pick_sequence, required_equipment FROM location WHERE id = ?")
 			.param(locationId)
-			.query(String.class)
-			.optional()
-			.orElse(null);
+			.query((rs, n) -> new LocationInfo(rs.getLong("zone_id"), rs.getObject("pick_sequence", Integer.class),
+					rs.getString("required_equipment")))
+			.single();
+	}
+
+	record LocationInfo(long zoneId, Integer pickSequence, String requiredEquipment) {
 	}
 
 	Optional<String> waveStatus(long waveId) {
