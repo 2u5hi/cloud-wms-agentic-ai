@@ -269,6 +269,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/waves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List waves */
+        get: operations["listWaves"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waves/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan a wave
+         * @description Selects open orders, promises stock, and creates pick tasks plus the replenishment they depend on. With preview=true nothing is written and no stock is locked; the result is advisory.
+         */
+        post: operations["planWave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waves/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a wave with its orders and task counts */
+        get: operations["getWave"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waves/{number}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a planned wave
+         * @description Cancels its work, releases the stock it promised, and returns its orders to RECEIVED.
+         */
+        post: operations["cancelWave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waves/{number}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a wave to the floor */
+        post: operations["releaseWave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/zones": {
         parameters: {
             query?: never;
@@ -484,6 +575,11 @@ export interface components {
             /** @description Opaque cursor for the next page; null on the last page */
             nextCursor?: string | null;
         };
+        PageWaveSummaryView: {
+            items: components["schemas"]["WaveSummaryView"][];
+            /** @description Opaque cursor for the next page; null on the last page */
+            nextCursor?: string | null;
+        };
         PageZoneView: {
             items: components["schemas"]["ZoneView"][];
             /** @description Opaque cursor for the next page; null on the last page */
@@ -495,6 +591,42 @@ export interface components {
             /** Format: int32 */
             minQty: number;
             sku: string;
+        };
+        PlanResultView: {
+            /** Format: int32 */
+            orders: number;
+            /** Format: int32 */
+            pickTasks: number;
+            preview: boolean;
+            /** Format: int32 */
+            replenishmentTasks: number;
+            shortages: components["schemas"]["ShortageView"][];
+            /** Format: int32 */
+            unitsAllocated: number;
+            /**
+             * Format: int32
+             * @description Units that could not be covered for orders in this wave
+             */
+            unitsShort: number;
+            /**
+             * Format: int64
+             * @description Null for a preview, or when there was nothing to plan
+             */
+            waveNumber?: number | null;
+        };
+        PlanWaveRequest: {
+            /** @description Only orders for this carrier */
+            carrier?: string | null;
+            /**
+             * Format: int32
+             * @description Only orders whose carrier cutoff is within this many hours
+             */
+            cutoffWithinHours?: number | null;
+            /**
+             * Format: int32
+             * @description How many orders the wave may cover; default 50
+             */
+            maxOrders?: number | null;
         };
         Quantities: {
             /** Format: int32 */
@@ -520,6 +652,12 @@ export interface components {
             id: string;
             type: string;
         };
+        ShortageView: {
+            order: string;
+            /** Format: int32 */
+            quantity: number;
+            sku: string;
+        };
         SkuAvailabilityView: {
             byLocationType: components["schemas"]["LocationTypeAvailability"][];
             sku: string;
@@ -532,6 +670,22 @@ export interface components {
             uom: string;
             /** @enum {string|null} */
             velocityClass?: "A" | "B" | "C" | null;
+        };
+        TaskCounts: {
+            /** Format: int32 */
+            assigned: number;
+            /** Format: int32 */
+            cancelled: number;
+            /** Format: int32 */
+            completed: number;
+            /** Format: int32 */
+            inProgress: number;
+            /** Format: int32 */
+            ready: number;
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            waiting: number;
         };
         TransactionView: {
             actor: components["schemas"]["ActorView"];
@@ -548,6 +702,46 @@ export interface components {
             toLocation?: string | null;
             /** @enum {string} */
             type: "RECEIPT" | "PICK" | "MOVE" | "ADJUST" | "COUNT_VARIANCE";
+        };
+        WaveOrderView: {
+            /** Format: date-time */
+            carrierCutoffAt: string;
+            customer: string;
+            externalRef: string;
+            /** Format: int32 */
+            priority: number;
+            status: string;
+            /** Format: int32 */
+            unitsAllocated: number;
+            /** Format: int32 */
+            unitsOrdered: number;
+        };
+        WaveSummaryView: {
+            /** Format: int64 */
+            number: number;
+            /** Format: int32 */
+            orders: number;
+            /** Format: date-time */
+            plannedAt: string;
+            /** Format: date-time */
+            releasedAt?: string | null;
+            status: string;
+            tasks: components["schemas"]["TaskCounts"];
+            /** Format: int32 */
+            unitsAllocated: number;
+        };
+        WaveView: {
+            /** Format: int64 */
+            number: number;
+            orders: components["schemas"]["WaveOrderView"][];
+            /** Format: date-time */
+            plannedAt: string;
+            /** Format: date-time */
+            releasedAt?: string | null;
+            status: string;
+            tasks: components["schemas"]["TaskCounts"];
+            /** Format: int32 */
+            unitsAllocated: number;
         };
         ZoneView: {
             code: string;
@@ -903,6 +1097,131 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SkuAvailabilityView"];
+                };
+            };
+        };
+    };
+    listWaves: {
+        parameters: {
+            query?: {
+                status?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageWaveSummaryView"];
+                };
+            };
+        };
+    };
+    planWave: {
+        parameters: {
+            query?: {
+                preview?: boolean;
+            };
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PlanWaveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PlanResultView"];
+                };
+            };
+        };
+    };
+    getWave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WaveView"];
+                };
+            };
+        };
+    };
+    cancelWave: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WaveView"];
+                };
+            };
+        };
+    };
+    releaseWave: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WaveView"];
                 };
             };
         };

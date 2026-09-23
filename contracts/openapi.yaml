@@ -9,6 +9,8 @@ servers:
 tags:
 - description: Stock by location and SKU
   name: Inventory
+- description: Planning orders into waves of pick and replenishment work
+  name: Waves
 - description: Inbound interface from the host system (ERP / order management)
   name: Host integration
 - description: Customer orders and their fulfilment status
@@ -472,6 +474,156 @@ paths:
       summary: Get a SKU's availability
       tags:
       - Inventory
+  /api/v1/waves:
+    get:
+      operationId: listWaves
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+          maximum: 500
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageWaveSummaryView"
+          description: OK
+      summary: List waves
+      tags:
+      - Waves
+  /api/v1/waves/plan:
+    post:
+      description: "Selects open orders, promises stock, and creates pick tasks plus\
+        \ the replenishment they depend on. With preview=true nothing is written and\
+        \ no stock is locked; the result is advisory."
+      operationId: planWave
+      parameters:
+      - in: query
+        name: preview
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanWaveRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlanResultView"
+          description: OK
+      summary: Plan a wave
+      tags:
+      - Waves
+  /api/v1/waves/{number}:
+    get:
+      operationId: getWave
+      parameters:
+      - in: path
+        name: number
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WaveView"
+          description: OK
+      summary: Get a wave with its orders and task counts
+      tags:
+      - Waves
+  /api/v1/waves/{number}/cancel:
+    post:
+      description: "Cancels its work, releases the stock it promised, and returns\
+        \ its orders to RECEIVED."
+      operationId: cancelWave
+      parameters:
+      - in: path
+        name: number
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WaveView"
+          description: OK
+      summary: Cancel a planned wave
+      tags:
+      - Waves
+  /api/v1/waves/{number}/release:
+    post:
+      operationId: releaseWave
+      parameters:
+      - in: path
+        name: number
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Unique per logical request. Retrying with the same key returns
+          the original response instead of repeating the command.
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_.:\\-]{1,100}$"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WaveView"
+          description: OK
+      summary: Release a wave to the floor
+      tags:
+      - Waves
   /api/v1/zones:
     get:
       operationId: listZones
@@ -1015,6 +1167,20 @@ components:
           description: Opaque cursor for the next page; null on the last page
       required:
       - items
+    PageWaveSummaryView:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WaveSummaryView"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: Opaque cursor for the next page; null on the last page
+      required:
+      - items
     PageZoneView:
       type: object
       properties:
@@ -1044,6 +1210,71 @@ components:
       - maxQty
       - minQty
       - sku
+    PlanResultView:
+      type: object
+      properties:
+        orders:
+          type: integer
+          format: int32
+        pickTasks:
+          type: integer
+          format: int32
+        preview:
+          type: boolean
+        replenishmentTasks:
+          type: integer
+          format: int32
+        shortages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShortageView"
+        unitsAllocated:
+          type: integer
+          format: int32
+        unitsShort:
+          type: integer
+          format: int32
+          description: Units that could not be covered for orders in this wave
+        waveNumber:
+          type:
+          - integer
+          - "null"
+          format: int64
+          description: "Null for a preview, or when there was nothing to plan"
+      required:
+      - orders
+      - pickTasks
+      - preview
+      - replenishmentTasks
+      - shortages
+      - unitsAllocated
+      - unitsShort
+    PlanWaveRequest:
+      type: object
+      properties:
+        carrier:
+          type:
+          - string
+          - "null"
+          description: Only orders for this carrier
+          maxLength: 30
+          minLength: 0
+        cutoffWithinHours:
+          type:
+          - integer
+          - "null"
+          format: int32
+          description: Only orders whose carrier cutoff is within this many hours
+          maximum: 168
+          minimum: 1
+        maxOrders:
+          type:
+          - integer
+          - "null"
+          format: int32
+          description: How many orders the wave may cover; default 50
+          maximum: 500
+          minimum: 1
     Quantities:
       type: object
       properties:
@@ -1108,6 +1339,20 @@ components:
       required:
       - id
       - type
+    ShortageView:
+      type: object
+      properties:
+        order:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+        sku:
+          type: string
+      required:
+      - order
+      - quantity
+      - sku
     SkuAvailabilityView:
       type: object
       properties:
@@ -1147,6 +1392,38 @@ components:
       - code
       - description
       - uom
+    TaskCounts:
+      type: object
+      properties:
+        assigned:
+          type: integer
+          format: int32
+        cancelled:
+          type: integer
+          format: int32
+        completed:
+          type: integer
+          format: int32
+        inProgress:
+          type: integer
+          format: int32
+        ready:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        waiting:
+          type: integer
+          format: int32
+      required:
+      - assigned
+      - cancelled
+      - completed
+      - inProgress
+      - ready
+      - total
+      - waiting
     TransactionView:
       type: object
       properties:
@@ -1194,6 +1471,98 @@ components:
       - quantity
       - sku
       - type
+    WaveOrderView:
+      type: object
+      properties:
+        carrierCutoffAt:
+          type: string
+          format: date-time
+        customer:
+          type: string
+        externalRef:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        status:
+          type: string
+        unitsAllocated:
+          type: integer
+          format: int32
+        unitsOrdered:
+          type: integer
+          format: int32
+      required:
+      - carrierCutoffAt
+      - customer
+      - externalRef
+      - priority
+      - status
+      - unitsAllocated
+      - unitsOrdered
+    WaveSummaryView:
+      type: object
+      properties:
+        number:
+          type: integer
+          format: int64
+        orders:
+          type: integer
+          format: int32
+        plannedAt:
+          type: string
+          format: date-time
+        releasedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        status:
+          type: string
+        tasks:
+          $ref: "#/components/schemas/TaskCounts"
+        unitsAllocated:
+          type: integer
+          format: int32
+      required:
+      - number
+      - orders
+      - plannedAt
+      - status
+      - tasks
+      - unitsAllocated
+    WaveView:
+      type: object
+      properties:
+        number:
+          type: integer
+          format: int64
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/WaveOrderView"
+        plannedAt:
+          type: string
+          format: date-time
+        releasedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        status:
+          type: string
+        tasks:
+          $ref: "#/components/schemas/TaskCounts"
+        unitsAllocated:
+          type: integer
+          format: int32
+      required:
+      - number
+      - orders
+      - plannedAt
+      - status
+      - tasks
+      - unitsAllocated
     ZoneView:
       type: object
       properties:

@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 
 import com.cloudwms.core.inventory.domain.InventoryBalance;
 import com.cloudwms.core.inventory.domain.InventoryMovement;
@@ -46,6 +47,30 @@ public class InventoryService {
 		updated.forEach(repository::saveBalance);
 		long transactionId = repository.insertMovement(movement);
 		return new RecordedMovement(transactionId, updated);
+	}
+
+	/**
+	 * Promises stock to orders: raises {@code allocated} at each location, locking rows in {@link #LOCK_ORDER}.
+	 * Throws INSUFFICIENT_INVENTORY (rolling the caller back) if another transaction took the stock first.
+	 */
+	@Transactional
+	public void allocate(Map<StockKey, Integer> quantities) {
+		apply(quantities, InventoryBalance::allocate);
+	}
+
+	/** Gives promised stock back, e.g. when a wave is cancelled. */
+	@Transactional
+	public void releaseAllocation(Map<StockKey, Integer> quantities) {
+		apply(quantities, InventoryBalance::deallocate);
+	}
+
+	private void apply(Map<StockKey, Integer> quantities, BiFunction<InventoryBalance, Integer, InventoryBalance> change) {
+		quantities.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() > 0)
+			.sorted(Map.Entry.comparingByKey(LOCK_ORDER))
+			.forEach(entry -> repository
+				.saveBalance(change.apply(repository.lockBalance(entry.getKey()), entry.getValue())));
 	}
 
 	/** Resolves a SKU code to its id, or NOT_FOUND. */

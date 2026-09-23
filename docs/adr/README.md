@@ -23,3 +23,4 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0017](0017-read-committed-and-lock-conflicts.md) | READ COMMITTED isolation; deadlocks become a retryable 503 | Concurrency |
 | [0018](0018-timestamps-in-utc.md) | Timestamps are UTC end to end; tests run outside UTC to catch time zone bugs | Persistence |
 | [0019](0019-mvp-first-deployment.md) | Ship a deployed MVP first, then deepen; Railway + Vercel for now | Process |
+| [0020](0020-wave-planning.md) | Wave planning: promise stock where it sits; serialize planners with a row lock | Domain |
