@@ -1,14 +1,33 @@
 package com.cloudwms.core.devdata;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import com.cloudwms.core.IntegrationTest;
 import com.cloudwms.core.inventory.InventoryService;
+import com.cloudwms.core.orders.OrderService;
+import com.cloudwms.core.waves.WavePlanningService;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @IntegrationTest
@@ -24,11 +43,75 @@ class DevDataSeederTest {
 	@Autowired
 	PlatformTransactionManager transactions;
 
+	@Autowired
+	OrderService orders;
+
+	@Autowired
+	WavePlanningService waves;
+
+	@Autowired
+	MockMvc mockMvc;
+
 	boolean seededHere;
+	Optional<Long> demoWave;
 
 	@BeforeAll
 	void seedOnce() {
 		seededHere = new DevDataSeeder(jdbc, inventory, transactions).seed();
+		demoWave = new DemoScenario(jdbc, orders, waves, transactions).create(Instant.now());
+	}
+
+	/** The whole demo in one test, because each step depends on the one before. */
+	@Test
+	void theDemoWaveBlocksOnTheReachTruckAndTheProposedFixClearsIt() throws Exception {
+		assertThat(demoWave).isPresent();
+		long wave = demoWave.get();
+		String blocked = "$.blockers[?(@.rootCause == 'NO_ELIGIBLE_WORKER_AVAILABLE')]";
+
+		// Two replenishments from high reserve, nobody available to drive the truck, and the two orders
+		// that need them close to their cutoff.
+		String diagnosis = mockMvc.perform(get("/api/v1/waves/{wave}/diagnosis", wave))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("RELEASED"))
+			.andExpect(jsonPath("$.picks.waiting").value(2))
+			.andExpect(jsonPath(blocked, hasSize(2)))
+			.andExpect(jsonPath(blocked + ".replenishment.requiredEquipment", everyItem(is("REACH_TRUCK"))))
+			.andExpect(jsonPath("$.atRiskOrders[*].order", hasItems("SO-DEMO-1007", "SO-DEMO-1008")))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		// Approve the fix the agent would propose: give each replenishment to the certified driver.
+		List<Integer> replenishments = JsonPath.read(diagnosis, blocked + ".replenishment.taskId");
+		for (int task : replenishments) {
+			String proposal = mockMvc
+				.perform(command("/api/v1/proposals").header("X-Agent-Id", "ops-agent")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{"kind": "REASSIGN_TASK", "wave": %d, "payload": {"task": %d, "worker": "%s"},
+							 "rationale": "the only certified driver", "evidence": ["diagnosis"]}"""
+						.formatted(wave, task, DemoScenario.REACH_TRUCK_DRIVER)))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+			mockMvc.perform(command("/api/v1/proposals/" + JsonPath.read(proposal, "$.id") + "/approve"))
+				.andExpect(status().isOk());
+		}
+
+		mockMvc.perform(get("/api/v1/waves/{wave}/diagnosis", wave))
+			.andExpect(jsonPath(blocked, hasSize(0)))
+			.andExpect(jsonPath("$.blockers[?(@.rootCause == 'IN_PROGRESS')]", hasSize(2)));
+	}
+
+	@Test
+	void theDemoScenarioIsCreatedOnce() {
+		assertThat(new DemoScenario(jdbc, orders, waves, transactions).create(Instant.now())).isEmpty();
+		assertThat(count("SELECT COUNT(*) FROM orders WHERE external_ref LIKE 'SO-DEMO-%'")).isEqualTo(8);
+	}
+
+	private MockHttpServletRequestBuilder command(String path) {
+		return post(path).header("Idempotency-Key", UUID.randomUUID().toString());
 	}
 
 	@Test

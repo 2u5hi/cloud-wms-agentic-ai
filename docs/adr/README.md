@@ -28,3 +28,4 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0022](0022-deterministic-wave-diagnosis.md) | The engine diagnoses blockers; the agent explains them | Agent |
 | [0023](0023-api-views-own-nullability.md) | API views own the contract; domain records are never returned directly | API |
 | [0024](0024-agent-proposes-wms-executes.md) | The agent reads the public API and proposes; approval runs the command in the WMS | Agent |
+| [0025](0025-demo-scenario-through-real-services.md) | The demo's blocked wave is produced by the real planner, not inserted | Tooling |

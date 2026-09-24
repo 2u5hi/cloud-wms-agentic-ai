@@ -18,11 +18,12 @@ Done and on `main`:
 | Waves and tasks | Planning with allocation and replenishment, worker claims and task execution, deterministic wave diagnosis (MVP commits 1-3) |
 | Console | Orders, Waves, Wave detail with the diagnosis and Plan/Release/Cancel, Tasks (MVP commit 4) |
 | Agent | `ops-agent` (FastAPI + Haiku), read tools over the public API, proposals approved in the console (MVP commit 5) |
+| Demo scenario | A fresh `dev` database boots into a released wave blocked on a busy reach-truck driver (MVP commit 6) |
 | Platform | READ COMMITTED isolation, retryable 503 on lock conflicts, UTC timestamps end to end |
-| Docs | 24 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
-| Tests | 172 backend, 19 web, 14 agent |
+| Docs | 25 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
+| Tests | 174 backend, 19 web, 14 agent |
 
-Remaining for the MVP: the demo scenario and deployment (commits 6-7 below).
+Remaining for the MVP: deployment (commit 7 below).
 
 ---
 
@@ -56,8 +57,8 @@ Each is one commit, with tests, docs (ADR when a decision is made), and a short 
 | 3 ✅ | `feat(waves): diagnose blocked waves` | `GET /waves/{n}/diagnosis` — counts by task state, blockers with root cause (`WAITING_ON_REPLENISHMENT`, `NO_ELIGIBLE_WORKER_AVAILABLE`, `SHORT_ALLOCATED`), affected orders and SKUs | The demo scenario returns the blocker with the reach-truck reason and the reserve quantity available |
 | 4 ✅ | `feat(web): orders, waves, and tasks pages` | Three pages in the existing shell, wave detail showing the diagnosis, a Plan Wave action | A blocked wave is visible and explained in the browser |
 | 5 ✅ | `feat(agent): investigate and propose fixes` | `ops-agent` (FastAPI + Anthropic SDK), read tools over the public API, grounded answer with evidence, `POST /proposals` in core, approve/reject, execution through the same commands; Haiku default, token and daily budget caps, passcode-protected | "Why is wave N blocked?" returns an explanation citing tool results plus a proposal; approving it creates the replenishment or reassigns the task, and the wave unblocks |
-| 6 | `feat(devdata): seed the demo scenario` | Orders on the seeded warehouse, one wave planned into the blocked state, workers where only one has `REACH_TRUCK` and is busy | A fresh database reaches the demo state automatically under the `dev` profile |
-| 7 | `feat(deploy): containerize and deploy` | Dockerfiles for `wms-core` and `ops-agent`, Railway config, Vercel config and API rewrites, CORS, demo passcode, README with the live URL | The public URL shows the console, the demo scenario, and a working agent investigation |
+| 6 ✅ | `feat(devdata): seed the demo scenario` | Orders on the seeded warehouse, one wave planned into the blocked state, workers where only one has `REACH_TRUCK` and is busy | A fresh database reaches the demo state automatically under the `dev` profile |
+| 7 | `feat(deploy): containerize and deploy` | Dockerfiles for `wms-core` and `ops-agent`, Railway config, Vercel config and API rewrites, CORS, demo passcode, a demo reset (the scenario is single-shot, [ADR 0025](adr/0025-demo-scenario-through-real-services.md)), README with the live URL | The public URL shows the console, the demo scenario, and a working agent investigation |
 
 **Rough size:** 2–3 working sessions.
 
