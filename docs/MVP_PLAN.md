@@ -86,7 +86,7 @@ Region **us-east-1**. App Runner was the plan until it turned out to be closed t
 | Claude access | The `cloud-wms-ops-agent` role, trusted by the `ops-agent-deployed` rule in the Claude Console. No Anthropic key exists |
 | Code | `deploy.yml` on every push to main, after all three test workflows pass, through an OIDC role that can only ship code |
 | Infrastructure | `terraform apply` from `deploy/terraform`, by hand |
-| Budget alert | `terraform.tfvars` (not committed): email at 50/80/100% of $20/month, and on a forecast over it |
+| Budget | `terraform.tfvars` (not committed): email at 50/80/100% of $20/month and on a forecast; at 100% AWS stops the database automatically. A one-command kill switch for both services is in `deploy/terraform/README.md` |
 
 **Cost:** ~$15/month, nearly all RDS, currently covered by the account's AWS credits. Stopping the database between demos drops it to ~$2. Each agent investigation is ~$0.008 of API credits.
 

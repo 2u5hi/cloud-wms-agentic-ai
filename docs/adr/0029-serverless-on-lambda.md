@@ -39,7 +39,9 @@ CloudFront ─┬─ /            → S3 (console, private, origin access contro
 
 ## Consequences
 - About **$15/month**, nearly all RDS, currently paid by the account's AWS credits. Stopping the database
-  between demos brings it to ~$2/month of storage; a budget alert emails at 50/80/100% and on a forecast.
+  between demos brings it to ~$2/month of storage. A budget emails at 50/80/100% and on a forecast, and at
+  100% a budget action stops the database by itself, so the one always-on cost cannot run past the budget.
+  Everything else is usage-priced and inside AWS's free allowances at demo traffic.
 - **Cold starts.** The first request after an idle spell starts a JVM (a few seconds) before answering.
 - The account's Lambda concurrency limit is 10, which rules out reserved concurrency, so the agent's daily
   budget is per instance. The Anthropic workspace's own spend limit is the hard cap.
