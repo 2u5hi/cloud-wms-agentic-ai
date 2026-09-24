@@ -112,10 +112,9 @@ Region **us-east-1**. App Runner was the plan until it turned out to be closed t
 
 Say: *"Continue the WMS — read docs/MVP_PLAN.md."* Then:
 
-1. Read this file for Phase 1 scope and the commit list, and [`PLAN.md`](PLAN.md) for the phases after it.
+1. Phase 1 is done. Read [`PLAN.md`](PLAN.md) for Phase 2 onward, and write a commit plan for the next phase in the same shape as §3 before starting it.
 2. Read [`docs/adr/README.md`](adr/README.md) for decisions already made; don't relitigate them.
 3. `git log --oneline -15` to see where the work stopped.
-4. Start the next unchecked commit in §3.
 
 **Local setup reminders**
 - JDK 21 is at `C:\Users\dhanu\.jdk\jdk-21.0.12.1+1`; `JAVA_HOME` still points at 17, so set it per command.
@@ -123,4 +122,5 @@ Say: *"Continue the WMS — read docs/MVP_PLAN.md."* Then:
 - Start infrastructure: `docker compose -f deploy/compose/docker-compose.yml up -d --wait`
 - Run the backend with demo data: `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`. The local `wms` schema holds leftovers from manual testing; for a clean demo, point `MYSQL_URL` at a fresh schema (e.g. `jdbc:mysql://localhost:3307/wms_demo`).
 - Tests need Docker running (Testcontainers).
+- **The deployed demo** is operated from `deploy/terraform` ([README](../deploy/terraform/README.md)). Terraform is at `C:\Users\dhanu\AppData\Local\Microsoft\WinGet\Packages\Hashicorp.Terraform_Microsoft.Winget.Source_8wekyb3d8bbwe\terraform.exe` (on PATH in new shells); use `AWS_PROFILE=wmscb-dev`. In Git Bash, prefix AWS CLI calls that take `/paths` with `MSYS_NO_PATHCONV=1`. Code deploys itself on push; infrastructure changes need `terraform plan`, then `apply`.
 - The agent: `cd ops-agent`, then with `AWS_PROFILE=wms-ops-agent`, `DEMO_PASSCODE=dev-supervisor` and the three `ANTHROPIC_*` federation IDs set (see `ops-agent/.env.example`), run `.venv/Scripts/python -m uvicorn ops_agent.api:app --app-dir src --port 8000`. API usage needs **API credits** in the Claude Console (Credits → Add funds), which are separate from Claude app usage credits.
