@@ -9,7 +9,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     # log-bin-trust-function-creators lets the app user create triggers while binary logging is on
-    # (MySQL 8.4 default). Cloud SQL needs the same flag. Keep in sync with TestcontainersConfiguration.
+    # (MySQL 8.4 default). RDS needs the same flag in its parameter group. Keep in sync with TestcontainersConfiguration.
     command: ["--default-time-zone=+00:00", "--log-bin-trust-function-creators=1"]
     ports:
       - "${MYSQL_PORT:-3307}:3306"
@@ -17,20 +17,6 @@ services:
       - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
-  pubsub:
-    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:585.0.0-emulators
-    command: >
-      gcloud beta emulators pubsub start
-      --project=${PUBSUB_PROJECT_ID}
-      --host-port=0.0.0.0:8085
-    ports:
-      - "${PUBSUB_PORT:-8085}:8085"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8085 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 20

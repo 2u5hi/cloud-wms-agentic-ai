@@ -22,10 +22,11 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0016](0016-host-order-import.md) | Host order import: each order succeeds or fails on its own; resends are duplicates | Integration |
 | [0017](0017-read-committed-and-lock-conflicts.md) | READ COMMITTED isolation; deadlocks become a retryable 503 | Concurrency |
 | [0018](0018-timestamps-in-utc.md) | Timestamps are UTC end to end; tests run outside UTC to catch time zone bugs | Persistence |
-| [0019](0019-mvp-first-deployment.md) | Ship a deployed MVP first, then deepen; Railway + Vercel for now | Process |
+| [0019](0019-mvp-first-deployment.md) | Ship a deployed MVP first, then deepen (hosting superseded by 0026) | Process |
 | [0020](0020-wave-planning.md) | Wave planning: promise stock where it sits; serialize planners with a row lock | Domain |
 | [0021](0021-claiming-and-completing-work.md) | Claiming work: ordered candidates with a conditional update; completion moves stock | Concurrency |
 | [0022](0022-deterministic-wave-diagnosis.md) | The engine diagnoses blockers; the agent explains them | Agent |
 | [0023](0023-api-views-own-nullability.md) | API views own the contract; domain records are never returned directly | API |
 | [0024](0024-agent-proposes-wms-executes.md) | The agent reads the public API and proposes; approval runs the command in the WMS | Agent |
 | [0025](0025-demo-scenario-through-real-services.md) | The demo's blocked wave is produced by the real planner, not inserted | Tooling |
+| [0026](0026-aws-deployment.md) | Deploy on AWS, described in Terraform; replaces Railway and the Google Cloud target | Platform |

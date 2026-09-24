@@ -1,6 +1,6 @@
 # 0019. Ship a deployed MVP first, then deepen
 
-**Status:** accepted (2026-09-23)
+**Status:** accepted (2026-09-23). The hosting choice (Railway + Vercel, Google Cloud later) is superseded by [ADR 0026](0026-aws-deployment.md); the deploy-first ordering stands, now as Phase 1 of [`PLAN.md`](../PLAN.md).
 
 ## Context
 The original milestone order built the WMS thoroughly before anything was deployed: events, simulators, integrations and auth all came before the agent, and nothing was reachable on the internet until late. That's good engineering order but poor demo order — the project's value to a reader is a working link, and the agent is what makes it distinctive.

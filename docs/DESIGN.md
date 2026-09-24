@@ -9,14 +9,15 @@
 Status: **Living design.** Implementation decisions, with code references, are recorded in
 [`docs/adr/`](adr/README.md). This document is updated wherever the implementation departs from the plan.
 
-> **Current working plan: [`docs/MVP_PLAN.md`](MVP_PLAN.md).** A deployed demo comes first — wave planning,
-> a blocked wave, the agent's explanation and proposal, approval, execution. It supersedes the milestone
-> order in §10 until the MVP is live ([ADR 0019](adr/0019-mvp-first-deployment.md)); everything deferred is
-> listed there and comes back in the deepening phase.
+> **Build order: [`docs/PLAN.md`](PLAN.md)** — six phases, each ending in something deployed. Phase 1's
+> commit-by-commit plan is [`docs/MVP_PLAN.md`](MVP_PLAN.md). They supersede the milestones in §10.
+>
+> **Hosting is AWS** ([ADR 0026](adr/0026-aws-deployment.md)). Where this document still describes the
+> original Google Cloud plan, §2.1 gives the AWS equivalent.
 
-Changes since v1: Java/Spring Boot core, Python agent, MySQL (not Postgres), Google Pub/Sub (emulator locally),
-local-first on Docker and Kubernetes, configuration-driven rules, an automation (MHE) integration, a bidirectional
-host interface, and a consultant-style solution design document. See §13 for the reasoning.
+Changes since v1: Java/Spring Boot core, Python agent, MySQL (not Postgres), event-driven integration,
+configuration-driven rules, an automation (MHE) integration, a bidirectional host interface, and a
+consultant-style solution design document. See §13 for the reasoning.
 
 ---
 
@@ -52,12 +53,13 @@ proposes typed actions, and a supervisor approves them before they run.
 - **Wave planning:** template → selection → allocation → demand replenishment → pick task generation → release.
 - **Tasks:** PICK, REPLENISH, COUNT. Task dependencies, priority, pull-based claiming.
 - **Execution:** worker claims the next task, confirms a pick, reports a short pick, completes replenishment.
+- **Receiving & putaway:** ASN receipt into a dock location, putaway tasks into reserve.
 - **Pack & ship:** pack confirmation → carton inducted to a **sortation system** (MHE integration) → divert to a carrier lane → ship confirmation.
 - **Workers:** role, equipment certifications, zone, status (available / busy / break / offline).
 - **Integrations:**
   - *Host (ERP):* order import in, ship confirmations and inventory adjustments out, with retries and dead-lettering.
   - *Automation (MHE):* WMS ↔ sorter message exchange through an adapter (anti-corruption layer), including fault handling.
-- **Events:** transactional outbox → Google Pub/Sub → idempotent subscribers, plus live push to the UI.
+- **Events:** transactional outbox → AWS messaging → idempotent subscribers, plus live push to the UI.
 - **Rules & alerts:** `WAVE_BLOCKED`, `ORDER_AT_RISK`, `FORWARD_PICK_BELOW_MIN`, `REPLENISHMENT_STALLED`, `INVENTORY_DISCREPANCY`, `MHE_FAULT`.
 - **Agent:** investigation tools, typed proposals, approval flow, autonomy policy, run traces, eval suite.
 - **Ops console:** dashboard, waves, orders, tasks, inventory, configuration, event timeline, AI operations panel.
@@ -65,15 +67,14 @@ proposes typed actions, and a supervisor approves them before they run.
 
 ### Out of scope (and the writeup should say so)
 Labor standards/engineered labor, billing, multi-warehouse, lots/serials/expiry, cartonization, carrier rating,
-yard management, returns, receiving/putaway (stretch). Listing what you cut, and why, is itself a signal of judgment.
+yard management, returns. Listing what you cut, and why, is itself a signal of judgment.
 
 ### Stretch (only after the core demo is solid)
 1. **MCP server** exposing the agent's scoped tools, so any MCP client can operate the warehouse with the same permissions.
 2. **Order streaming / waveless release** as a second release mode next to waves. Manhattan publicly markets
    order streaming as an alternative to traditional waving. Research it before claiming anything specific.
-3. Receiving + putaway (ASN → receipt → putaway task into reserve).
-4. A warehouse map view (location grid heat-mapped by availability and task activity).
-5. Stream events to BigQuery (free tier) for analytics.
+3. A warehouse map view (location grid heat-mapped by availability and task activity).
+4. Stream events to S3 for analytics with Athena.
 
 ---
 
@@ -83,18 +84,20 @@ yard management, returns, receiving/putaway (stretch). Listing what you cut, and
 
 Manhattan's published architecture uses Java + Spring microservices in Docker on Google Kubernetes Engine,
 Cloud SQL for MySQL, Google Pub/Sub for asynchronous messaging, BigQuery for analytics, and REST between
-services (sources in §14). This project follows the same technology families. It runs locally, for free:
+services (sources in §14). This project keeps the application-level families (Java/Spring, MySQL, REST,
+containers, event-driven messaging) and runs them on **AWS** ([ADR 0026](adr/0026-aws-deployment.md)). It does
+not claim to run on Manhattan's cloud:
 
-| Manhattan (public) | This project, local (free) | This project, cloud (optional) |
-|---|---|---|
-| Java + Spring microservices | Java 21 + Spring Boot | same |
-| Docker images | Docker | Artifact Registry |
-| Google Kubernetes Engine | Docker Compose, then **kind** (local Kubernetes) | GKE Autopilot ($300 trial) |
-| Cloud SQL for MySQL | MySQL 8 container | Cloud SQL for MySQL |
-| Google Pub/Sub | **Official Pub/Sub emulator** + real Google client libraries | Pub/Sub |
-| Cloud Logging / Monitoring | OpenTelemetry → Grafana LGTM container | Cloud Logging / Monitoring |
-| BigQuery | — | BigQuery free tier (stretch) |
-| Identity & authorization service | Keycloak (OAuth2 / OIDC) container | same, or Identity Platform |
+| Manhattan (public) | This project, local | This project, AWS | Same family? |
+|---|---|---|---|
+| Java + Spring microservices | Java 21 + Spring Boot | same, in containers | Yes |
+| Docker images | Docker | ECR | Yes |
+| Google Kubernetes Engine | Docker Compose | ECS Fargate or App Runner (no Kubernetes) | Containers yes, Kubernetes no |
+| Cloud SQL for MySQL | MySQL 8 container | RDS for MySQL | Yes (MySQL) |
+| Google Pub/Sub | LocalStack (Phase 3) | AWS messaging, chosen in Phase 3 | Event-driven yes, product no |
+| Cloud Logging / Monitoring | logs to stdout | CloudWatch | Different product |
+| BigQuery | — | S3 + Athena (stretch) | Different product |
+| Identity & authorization service | role tokens (Phase 1) | Cognito (Phase 5) | Different product |
 
 What stays deliberately different: Manhattan runs 250+ microservices built by large teams. One developer
 doesn't gain anything from that granularity. §2.3 explains where this project draws its service boundaries.
@@ -131,8 +134,8 @@ flowchart LR
   end
 
   DB[(MySQL 8)]
-  PS{{Google Pub/Sub<br/>emulator locally}}
-  IDP[Keycloak<br/>OAuth2]
+  PS{{AWS messaging<br/>LocalStack locally}}
+  IDP[Cognito<br/>OAuth2]
 
   subgraph AGENT["ops-agent (Python + FastAPI)"]
     LOOP[Agent loop<br/>Claude / Ollama]
@@ -171,7 +174,7 @@ boundaries exist, not per database table.
 ### 2.4 Key decisions
 
 **The agent is an API client, not a privileged insider.** It authenticates with OAuth2 client credentials
-(Keycloak) and holds scopes `wms.read` and `wms.propose`. It **cannot execute**: `wms.execute` belongs to human
+(Cognito in Phase 5; a role-scoped service token before that) and holds scopes `wms.read` and `wms.propose`. It **cannot execute**: `wms.execute` belongs to human
 supervisors, and optionally to an explicit autonomy policy (§5.5).
 
 **Contract-first across three languages.** `wms-core` generates its OpenAPI spec with springdoc, and the spec is
@@ -198,18 +201,19 @@ in practice: consultants configure rules, and extensions are for what configurat
 | Core service | **Java 21 + Spring Boot 4** (Maven) | Matches Manhattan's Java/Spring stack. Virtual threads mean plain blocking code with no async complexity |
 | Persistence | **Spring `JdbcClient`** with explicit SQL, no ORM | Locking (`FOR UPDATE`, `SKIP LOCKED`), lock order, and every write are visible in the code; nothing is flushed or lazily loaded behind your back |
 | Migrations | **Flyway** (plain `.sql`) | |
-| Database | **MySQL 8** (InnoDB) | Same engine as Manhattan's Cloud SQL. Supports `SKIP LOCKED`, `JSON`, `CHECK` constraints |
-| Messaging | **Google Pub/Sub** (emulator locally), `spring-cloud-gcp-starter-pubsub` in Java, `google-cloud-pubsub` in Python | Same client libraries against the emulator and real Pub/Sub |
-| Auth | **Keycloak** + Spring Security OAuth2 Resource Server | Standard OAuth2/OIDC. A realm export is committed so setup is reproducible |
+| Database | **MySQL 8** (InnoDB); RDS for MySQL on AWS | Same engine as Manhattan's Cloud SQL. Supports `SKIP LOCKED`, `JSON`, `CHECK` constraints |
+| Messaging | AWS messaging with the AWS SDKs (LocalStack locally), Phase 3 | Same client code against LocalStack and AWS |
+| Auth | Spring Security: role-scoped tokens (Phase 1), then **Cognito** via the OAuth2 Resource Server (Phase 5) | Standard OAuth2/OIDC; the endpoints and roles don't change between the two |
 | API docs | springdoc-openapi → `contracts/openapi.yaml` | |
 | Agent | **Python 3.12 + FastAPI + Anthropic SDK**, with the model provider switchable to **Ollama** | Free local models for development; `claude-sonnet-5` / `claude-haiku-4-5` for demos and evals |
-| Simulators | Python 3.12 (generated client + Pub/Sub client) | |
+| Simulators | Python 3.12 (generated client + AWS SDK) | |
 | Frontend | React + TS + Vite, TanStack Query + TanStack Table, Tailwind + shadcn/ui | Dense, data-grid-heavy operations UI |
-| Live updates | Server-Sent Events (Spring `SseEmitter`), fed by a Pub/Sub subscription | One-way push is enough |
-| Observability | OpenTelemetry (Java agent + Python SDK) → `grafana/otel-lgtm` container | Traces follow a request from the API through the database and Pub/Sub to the agent |
-| Tests | JUnit 5, **Testcontainers** (MySQL, Pub/Sub emulator), seeded property tests, ArchUnit (module boundaries), pytest | |
-| Local runtime | Docker Compose → kind + Kustomize | |
-| CI | GitHub Actions: build, tests, spec-drift check, client codegen, image builds | |
+| Live updates | Server-Sent Events (Spring `SseEmitter`), fed by the event stream | One-way push is enough |
+| Observability | OpenTelemetry (Java agent + Python SDK) → CloudWatch on AWS | Traces follow a request from the API through the database and messaging to the agent |
+| Tests | JUnit 5, **Testcontainers** (MySQL, LocalStack), seeded property tests, ArchUnit (module boundaries), pytest | |
+| Local runtime | Docker Compose | |
+| Cloud | **AWS**, described in **Terraform** ([ADR 0026](adr/0026-aws-deployment.md)) | |
+| CI/CD | GitHub Actions: build, tests, spec-drift check, client codegen, image builds, deploy to AWS via OIDC | |
 
 ### 2.6 Repo layout
 
@@ -225,12 +229,12 @@ web/                 React + TS ops console
 contracts/
   openapi.yaml       generated from wms-core, committed
   events/            JSON Schemas for event payloads
-  pubsub/            topic and subscription definitions
 deploy/
-  compose/           docker-compose.yml (MySQL, Pub/Sub emulator, Keycloak, LGTM, services)
-  k8s/               Kustomize base + overlays (kind, gke)
-  keycloak/          realm export
+  compose/           docker-compose.yml (MySQL, LocalStack in Phase 3, services)
+  terraform/         AWS infrastructure
 docs/
+  PLAN.md            phases and what "done" means for each
+  MVP_PLAN.md        Phase 1, commit by commit
   DESIGN.md          this document
   SOLUTION_DESIGN.md consultant-style solution design (§12)
   adr/               architecture decision records
@@ -391,7 +395,7 @@ The engine does the joins and arithmetic. The agent's job is to explain the resu
   `NOT_ELIGIBLE`, `INVALID_CONFIGURATION`. Deadlocks and lock timeouts return a retryable
   `503 CONCURRENCY_CONFLICT` ([ADR 0017](adr/0017-read-committed-and-lock-conflicts.md)).
 - **Keyset (cursor) pagination:** `?cursor=&limit=` returns `{items, nextCursor}`, with filtering (`?status=RELEASED&zone=A`).
-- **Auth:** OAuth2 via Keycloak. Clients: `web` (authorization code + PKCE), `ops-agent`, `host-sim`,
+- **Auth:** OAuth2 via Cognito (Phase 5; role-scoped tokens before that). Clients: `web` (authorization code + PKCE), `ops-agent`, `host-sim`,
   `floor-sim` (client credentials). Scopes: `wms.read`, `wms.operate`, `wms.plan`, `wms.configure`,
   `wms.propose`, `wms.execute`, `wms.integrate`.
 - Every mutation writes an outbox event recording **actor type and id**, so the audit trail distinguishes human,
@@ -527,7 +531,11 @@ pass rate, tokens, cost, and latency per model.
 
 ## 6. Event architecture
 
-### 6.1 Transactional outbox → Pub/Sub
+### 6.1 Transactional outbox → messaging
+
+> Written against Pub/Sub; on AWS the same design uses a messaging service with per-aggregate ordering and
+> dead-letter queues, chosen in Phase 3 ([ADR 0026](adr/0026-aws-deployment.md)). "Topic", "subscription"
+> and "ordering key" below map to that service's equivalents.
 Every command writes its state change **and** its events in the **same MySQL transaction**. That avoids the
 dual-write problem: you never commit state and then crash before publishing, or publish an event for state that
 rolled back.
@@ -641,7 +649,7 @@ colors used sparingly, monospace entity IDs, a live-updating event ticker.
 
 ## 9. Simulators
 Python processes that act as the warehouse floor, the host, and the sorter, **only through public interfaces**
-(REST and Pub/Sub). This means they double as integration tests.
+(REST and messaging). This means they double as integration tests.
 - **Seed:** ~6 zones, ~1,200 locations, ~400 SKUs, velocity-skewed stock, default configuration.
 - **Host sim:** imports orders on a daily curve (morning spike, cutoff surges); consumes `host-outbound`; rejects a configurable fraction.
 - **Floor sim:** ~40 workers claim tasks, take time proportional to travel (pick-sequence distance), take breaks, end shifts.
@@ -654,8 +662,8 @@ Python processes that act as the warehouse floor, the host, and the sorter, **on
 
 ## 10. Milestones
 
-> Superseded until the MVP is live — see [`docs/MVP_PLAN.md`](MVP_PLAN.md). The milestones below remain the
-> plan for the deepening phase.
+> Superseded by [`docs/PLAN.md`](PLAN.md), which keeps the same content in a deploy-first order. Kept here
+> for the reasoning behind the original sequence.
 Build the domain before the AI. An agent is only as good as the system underneath it, and a working WMS
 without AI already makes a strong portfolio piece.
 
@@ -685,7 +693,7 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 1. **Real concurrency engineering.** Deadlock-free ordered locking for allocation, `SKIP LOCKED` task claiming,
    database-level invariants, and tests that prove all three under contention.
 2. **Ledger-based inventory** with a reconciliation invariant and property-based tests.
-3. **Transactional outbox → Pub/Sub** with idempotent consumers, dead-lettering, and a documented handling of the
+3. **Transactional outbox → messaging** with idempotent consumers, dead-lettering, and a documented handling of the
    commit-order gotcha.
 4. **Domain modeling.** Explicit state machines, task dependencies as data, allocation vs. on-hand, forward vs.
    reserve, facts vs. derived conditions.
@@ -699,14 +707,15 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
    then re-validated against preconditions at approval.
 10. **Objective agent evals** graded by the system itself, reported per model with cost and latency.
 11. **Contract-first across Java, Python, and TypeScript** from one OpenAPI spec, with drift checks in CI.
-12. **Same technology families as Manhattan's published platform** (Java/Spring, MySQL, Pub/Sub, Kubernetes), run locally for free.
+12. **Same application-level technology families as Manhattan's published platform** (Java/Spring, MySQL,
+    REST, containers, event-driven messaging), deployed on AWS.
 
 ---
 
 ## 12. Deliverables
 1. The working system, runnable with one `docker compose up`.
 2. GitHub repository with CI.
-3. Optional live deployment (GKE on trial credit, or a free-tier alternative).
+3. Live deployment on AWS, described in Terraform and deployed from CI.
 4. Architecture diagram.
 5. **Technical writeup:** architecture, key decisions (linking ADRs), the eval results table, and what I'd do differently.
 6. **Solution design document** (`docs/SOLUTION_DESIGN.md`), written as a consultant would for a client:
@@ -732,11 +741,11 @@ M5 integrations (strong signal for a consultancy), then evals and Kubernetes.
 | Core language | Java 21 + Spring Boot | Same stack as Manhattan's published platform. Demonstrates learning an unfamiliar enterprise stack. Checkpoint after M1 to fall back to Python if needed |
 | Agent language | Python | Existing strength; strongest AI tooling; enforces the API-only boundary |
 | Database | MySQL 8, READ COMMITTED | Manhattan's published choice (Cloud SQL for MySQL); familiar; has `SKIP LOCKED`, `JSON`, `CHECK`. READ COMMITTED avoids gap-lock deadlocks ([ADR 0017](adr/0017-read-committed-and-lock-conflicts.md)) |
-| Messaging | Google Pub/Sub (emulator locally) | Manhattan's published choice; free locally; same client code as production |
-| Runtime | Docker Compose → kind → optional GKE | Free; the same images and manifests would run on GKE |
+| Messaging | AWS messaging, chosen in Phase 3 (LocalStack locally) | Event-driven like Manhattan's platform, on the cloud this project runs on |
+| Runtime | Docker Compose locally; AWS containers + RDS, in Terraform | Familiar platform, existing account ([ADR 0026](adr/0026-aws-deployment.md)) |
 | Persistence | `JdbcClient`, explicit SQL | Concurrency-heavy domain: row locks and lock ordering must be visible and reviewable. JPA considered and not used ([ADR 0002](adr/0002-jdbcclient-over-jpa.md)) |
 | Build | Maven, pinned versions | Initializr's Gradle generation was broken; Maven is common in enterprise Java ([ADR 0001](adr/0001-maven-and-pinned-versions.md)) |
-| Auth | Keycloak | Standard OAuth2/OIDC without hand-rolling a token server |
+| Auth | Role-scoped tokens, then Cognito | Enforce the agent's boundary now; managed OAuth2/OIDC later without hand-rolling a token server |
 | Service split | Core / agent / simulators / web | Boundaries follow security and external-system lines, not tables |
 | LLM | Ollama for development; Anthropic for demos and evals | Free iteration; cost limited to demo and eval runs |
 

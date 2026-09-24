@@ -4,26 +4,30 @@ A cloud-based warehouse management system with an AI operations agent built in. 
 
 Independent learning project, modeled on publicly documented WMS concepts. Not affiliated with any vendor.
 
-**Status:** in development. Inventory, orders, wave planning, task execution, the console and the agent are built; the demo scenario and deployment are next.
+**Status:** Phase 1 of 6. Inventory, orders, wave planning, task execution, the console, the agent and the demo scenario are built and run locally. Authentication and the AWS deployment are next; until then there is no public instance.
 
-- [docs/MVP_PLAN.md](docs/MVP_PLAN.md) — what ships first, and what is deliberately deferred
+- [docs/PLAN.md](docs/PLAN.md) — the finished product and the phases to get there
+- [docs/MVP_PLAN.md](docs/MVP_PLAN.md) — Phase 1, commit by commit
 - [docs/DESIGN.md](docs/DESIGN.md) — the full design
 - [docs/adr/](docs/adr/README.md) — decisions made along the way
 
 ## Architecture
 
+Solid lines are built. Dashed lines are planned (see [PLAN.md](docs/PLAN.md)).
+
 ```mermaid
 flowchart LR
   WEB[Web console] --> API
-  SIMS[Simulators] --> API
+  AGENT[ops-agent] -- "read / propose" --> API
+  AGENT --> LLM[Claude API]
   subgraph CORE[wms-core]
     API[REST API] --> DOMAIN[Domain modules]
   end
   DOMAIN --> DB[(MySQL)]
-  DOMAIN -- outbox --> PS{{Pub/Sub}}
-  PS --> SIMS
-  PS --> AGENT[ops-agent]
-  AGENT -- read / propose --> API
+  SIMS[Simulators] -.-> API
+  DOMAIN -. outbox .-> MSG{{AWS messaging}}
+  MSG -.-> AGENT
+  MSG -.-> SIMS
 ```
 
 ## Stack
@@ -32,9 +36,11 @@ flowchart LR
 |---|---|
 | wms-core | Java 21, Spring Boot, MySQL 8, Flyway |
 | ops-agent | Python, FastAPI, Claude API |
-| simulators | Python |
 | web | React, TypeScript, Vite |
-| infra | Docker Compose, Google Pub/Sub emulator, Keycloak, Kubernetes (kind) |
+| local | Docker Compose |
+| cloud (Phase 1, in progress) | AWS: containers, RDS for MySQL, S3 + CloudFront, Terraform |
+
+Not in scope: labor standards, billing, multi-warehouse, lots/serials, cartonization, carrier rating, returns.
 
 ## Run locally
 
@@ -48,7 +54,7 @@ docker compose -f deploy/compose/docker-compose.yml up -d --wait
 cd wms-core && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-The `dev` profile seeds a demo warehouse on first start. API docs: http://localhost:8080/swagger-ui/index.html
+The `dev` profile seeds a demo warehouse and a blocked wave on first start. API docs: http://localhost:8080/swagger-ui/index.html
 
 ```bash
 cd web && npm install && npm run dev
