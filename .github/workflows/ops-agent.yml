@@ -1,23 +1,16 @@
 name: ops-agent
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "ops-agent/**"
-      - ".github/workflows/ops-agent.yml"
   pull_request:
     paths:
       - "ops-agent/**"
       - ".github/workflows/ops-agent.yml"
   workflow_dispatch:
+  # Called by deploy.yml on every push to main, so nothing ships without passing this.
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ops-agent-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:

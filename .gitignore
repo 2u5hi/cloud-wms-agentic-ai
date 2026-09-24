@@ -49,3 +49,10 @@ deploy/compose/data/
 
 # Logs
 *.log
+
+# Terraform
+deploy/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+deploy/terraform/*.tfvars

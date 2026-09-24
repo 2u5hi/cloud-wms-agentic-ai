@@ -3,3 +3,8 @@ wms:
   auth:
     supervisor-passcode: ${DEMO_PASSCODE:dev-supervisor}
     agent-token: ${AGENT_TOKEN:dev-agent-token}
+
+spring:
+  flyway:
+    # The demo reset wipes the schema and migrates it again (DemoData). Never enabled outside dev and demo.
+    clean-disabled: false

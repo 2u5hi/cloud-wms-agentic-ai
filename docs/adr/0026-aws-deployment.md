@@ -21,7 +21,7 @@ the transferable skill is; the hosting underneath is AWS.
 
 | Concern | AWS | Replaces (from DESIGN.md) |
 |---|---|---|
-| `wms-core`, `ops-agent` | Containers on ECS Fargate or App Runner, picked on current pricing in the deploy commit | GKE / Cloud Run |
+| `wms-core`, `ops-agent` | Lambda functions running the services' container images ([ADR 0029](0029-serverless-on-lambda.md); App Runner closed to new customers) | GKE / Cloud Run |
 | Database | RDS for MySQL 8 | Cloud SQL for MySQL |
 | Console | S3 + CloudFront | Vercel |
 | Secrets | AWS-managed secrets for the demo passcode and agent token. No Anthropic key: the agent uses workload identity federation ([ADR 0028](0028-claude-via-workload-identity.md)) | Railway variables |

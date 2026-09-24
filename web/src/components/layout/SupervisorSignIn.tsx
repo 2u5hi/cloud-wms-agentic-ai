@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { LogOut, ShieldCheck } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { LogOut, RotateCcw, ShieldCheck } from 'lucide-react'
+import { useNavigate } from 'react-router'
 
 import { credentials, useSupervisorPasscode } from '@/api/credentials'
 import { Badge } from '@/components/ui/badge'
@@ -17,10 +19,52 @@ export function SupervisorSignIn() {
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  // The demo's own reset (ADR 0029): rebuilds the warehouse and the blocked wave, undoing whatever the last
+  // visitor approved. Only on the demo and local builds; elsewhere the endpoint does not exist. It takes about
+  // 20 seconds on the deployed demo, so it says so, and says when it's done, and lands on the rebuilt wave.
+  const resetDemo = async () => {
+    if (!window.confirm('Reset the demo? This rebuilds the warehouse and the blocked wave from scratch.')) return
+    setResetting(true)
+    setError(null)
+    setNotice('Rebuilding the demo — about 20 seconds…')
+    try {
+      const response = await fetch('/demo/reset', { method: 'POST', headers: credentials.headers() })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) {
+        setNotice(null)
+        setError(body?.detail ?? `Reset failed (${response.status})`)
+        return
+      }
+      await queryClient.resetQueries()
+      setNotice(`Demo reset: wave ${body.wave} is blocked again`)
+      navigate(`/waves/${body.wave}`)
+      window.setTimeout(() => setNotice(null), 8000)
+    } catch {
+      setNotice(null)
+      setError('The API is unreachable')
+    } finally {
+      setResetting(false)
+    }
+  }
 
   if (passcode) {
     return (
       <div className="flex items-center gap-2">
+        {notice && (
+          <span role="status" className="text-xs text-muted-foreground">
+            {notice}
+          </span>
+        )}
+        {error && <span className="text-xs text-destructive">{error}</span>}
+        <Button variant="ghost" size="sm" onClick={resetDemo} disabled={resetting}>
+          <RotateCcw aria-hidden className={resetting ? 'animate-spin' : undefined} />{' '}
+          {resetting ? 'Resetting…' : 'Reset demo'}
+        </Button>
         <Badge variant="outline" className="gap-1">
           <ShieldCheck className="size-3" aria-hidden />
           Supervisor

@@ -1,25 +1,17 @@
 name: web
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "web/**"
-      - "contracts/**"
-      - ".github/workflows/web.yml"
   pull_request:
     paths:
       - "web/**"
       - "contracts/**"
       - ".github/workflows/web.yml"
   workflow_dispatch:
+  # Called by deploy.yml on every push to main, so nothing ships without passing this.
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: web-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:

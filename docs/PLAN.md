@@ -23,7 +23,7 @@ cartonization, carrier rating, returns, yard management.
 
 | # | Phase | Delivers | Done when |
 |---|---|---|---|
-| 1 | **Live MVP** | Waves, tasks, diagnosis, console, agent, demo scenario (done) · roles-based auth · proposal checks at creation · a live model test · AWS deployment with Terraform and deploy-on-push · demo reset | A public URL: anyone can browse, the supervisor passcode approves, the agent's token is refused on approve, a real Claude investigation of the demo wave proposes the right fix, and a reset restores the scenario |
+| 1 ✅ | **Live MVP** | Waves, tasks, diagnosis, console, agent, demo scenario (done) · roles-based auth · proposal checks at creation · a live model test · AWS deployment with Terraform and deploy-on-push · demo reset | A public URL: anyone can browse, the supervisor passcode approves, the agent's token is refused on approve, a real Claude investigation of the demo wave proposes the right fix, and a reset restores the scenario |
 | 2 | **Full workflow** | ASN receipt, putaway tasks into reserve, pack confirmation, ship confirmation, cycle-count tasks with variance adjustments | One order can be followed in the console from the receipt of its stock to its ship confirmation, and the ledger still reconciles |
 | 3 | **Events + integration** | Transactional outbox → AWS messaging (LocalStack locally), idempotent consumers, dead-lettering and an integration monitor, alert rules, the agent triggered by alerts, live console updates, host ship-confirms out, a simulated sorter behind an MHE adapter | Injecting a sorter jam raises an alert, the agent investigates on its own, and the failed messages are visible and retryable in the monitor |
 | 4 | **Agent depth** | More proposal kinds (re-source a replenishment, reprioritize, hold an order), preconditions and stale detection, dry-run predicted impact, an eval suite graded by the WMS with cost and latency per model | Approving a proposal shows predicted vs. actual impact, and the eval results table is in the docs |
@@ -32,9 +32,10 @@ cartonization, carrier rating, returns, yard management.
 
 ## Where it runs
 
-AWS ([ADR 0026](adr/0026-aws-deployment.md)): the two services as containers, RDS for MySQL, the console on
-S3 + CloudFront, secrets in AWS, everything described in Terraform and deployed by GitHub Actions. Exact
-compute and database sizes are chosen against current pricing in the deploy commit.
+AWS us-east-1 ([ADR 0026](adr/0026-aws-deployment.md), [ADR 0029](adr/0029-serverless-on-lambda.md)): both
+services as Lambda functions running their container images, RDS for MySQL, the console on S3, all behind one
+CloudFront distribution; infrastructure in Terraform, code shipped by GitHub Actions after the tests pass.
+Live at https://dana7rqasft6b.cloudfront.net.
 
 The application keeps the technology families of Manhattan's published platform — Java/Spring, MySQL, REST,
 containers, event-driven messaging — and runs them on AWS. It does not claim to run on Manhattan's cloud.

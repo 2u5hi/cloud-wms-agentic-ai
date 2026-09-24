@@ -32,3 +32,4 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0026](0026-aws-deployment.md) | Deploy on AWS, described in Terraform; replaces Railway and the Google Cloud target | Platform |
 | [0027](0027-roles-for-public-agent-supervisor.md) | Anyone reads, the agent's token only proposes, the supervisor passcode runs commands; proposals checked when made | Security |
 | [0028](0028-claude-via-workload-identity.md) | The agent reaches Claude through AWS workload identity federation; no API key exists | Security |
+| [0029](0029-serverless-on-lambda.md) | Both services on Lambda from their container images; RDS is the only always-on cost | Platform |

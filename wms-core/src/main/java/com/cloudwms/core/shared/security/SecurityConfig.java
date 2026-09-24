@@ -19,6 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
  * GET anything under /api, health, API docs     anyone
  * POST /api/v1/proposals                        AGENT or SUPERVISOR
  * POST anything else under /api                 SUPERVISOR   (includes approve and reject)
+ * POST /demo/reset (dev and demo profiles only)  SUPERVISOR
  * everything else                               denied
  * </pre>
  */
@@ -44,7 +45,7 @@ class SecurityConfig {
 				.permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/v1/proposals")
 				.hasAnyRole(Role.AGENT.name(), Role.SUPERVISOR.name())
-				.requestMatchers(HttpMethod.POST, "/api/**")
+				.requestMatchers(HttpMethod.POST, "/api/**", "/demo/reset")
 				.hasRole(Role.SUPERVISOR.name())
 				.requestMatchers("/error")
 				.permitAll()

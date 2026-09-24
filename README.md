@@ -4,7 +4,9 @@ A cloud-based warehouse management system with an AI operations agent built in. 
 
 Independent learning project, modeled on publicly documented WMS concepts. Not affiliated with any vendor.
 
-**Status:** Phase 1 of 6. Inventory, orders, wave planning, task execution, the console, the agent and the demo scenario are built and run locally. Authentication and the AWS deployment are next; until then there is no public instance.
+**Live demo:** https://dana7rqasft6b.cloudfront.net — open a blocked wave, ask the agent why, and (with the supervisor passcode) approve its fix.
+
+**Status:** Phase 1 of 6 complete: wave planning, task execution, a deterministic blocker diagnosis, the console, an agent that proposes fixes a supervisor approves, role-based auth, and the AWS deployment. Inbound (receiving, putaway) and outbound (pack, ship) come in Phase 2.
 
 - [docs/PLAN.md](docs/PLAN.md) — the finished product and the phases to get there
 - [docs/MVP_PLAN.md](docs/MVP_PLAN.md) — Phase 1, commit by commit
@@ -13,22 +15,25 @@ Independent learning project, modeled on publicly documented WMS concepts. Not a
 
 ## Architecture
 
-Solid lines are built. Dashed lines are planned (see [PLAN.md](docs/PLAN.md)).
+Solid lines are built and deployed. Dashed lines are planned (see [PLAN.md](docs/PLAN.md)).
 
 ```mermaid
 flowchart LR
-  WEB[Web console] --> API
-  AGENT[ops-agent] -- "read / propose" --> API
-  AGENT --> LLM[Claude API]
-  subgraph CORE[wms-core]
-    API[REST API] --> DOMAIN[Domain modules]
+  USER[Browser] --> CF[CloudFront]
+  CF --> S3[(S3: console)]
+  CF -- "/api" --> CORE
+  CF -- "/agent" --> AGENT
+  subgraph AWS[AWS us-east-1]
+    CORE[wms-core<br/>Lambda] --> DB[(RDS MySQL 8.4)]
+    AGENT[ops-agent<br/>Lambda] -- "read / propose" --> CORE
   end
-  DOMAIN --> DB[(MySQL)]
-  SIMS[Simulators] -.-> API
-  DOMAIN -. outbox .-> MSG{{AWS messaging}}
+  AGENT -- "workload identity" --> LLM[Claude API]
+  SIMS[Simulators] -.-> CORE
+  CORE -. outbox .-> MSG{{AWS messaging}}
   MSG -.-> AGENT
-  MSG -.-> SIMS
 ```
+
+The agent can read and propose; only a supervisor can approve, and the server enforces it ([ADR 0027](docs/adr/0027-roles-for-public-agent-supervisor.md)). It reaches Claude through AWS workload identity federation, so no API key exists ([ADR 0028](docs/adr/0028-claude-via-workload-identity.md)).
 
 ## Stack
 
@@ -38,7 +43,7 @@ flowchart LR
 | ops-agent | Python, FastAPI, Claude API |
 | web | React, TypeScript, Vite |
 | local | Docker Compose |
-| cloud (Phase 1, in progress) | AWS: containers, RDS for MySQL, S3 + CloudFront, Terraform |
+| cloud | AWS: Lambda (container images), RDS for MySQL, S3 + CloudFront, Terraform, GitHub Actions via OIDC ([ADR 0029](docs/adr/0029-serverless-on-lambda.md), [deploy/terraform](deploy/terraform/README.md)) |
 
 Not in scope: labor standards, billing, multi-warehouse, lots/serials, cartonization, carrier rating, returns.
 
@@ -62,8 +67,5 @@ cd web && npm install && npm run dev
 
 Console: http://localhost:5173
 
-The agent is optional; without it the console still shows the WMS's own diagnosis.
-
-```bash
-cd ops-agent && ANTHROPIC_API_KEY=... .venv/Scripts/python -m uvicorn ops_agent.api:app --app-dir src --port 8000
-```
+The agent is optional; without it the console still shows the WMS's own diagnosis. Setup, including its
+keyless access to Claude, is in [ops-agent/README.md](ops-agent/README.md).

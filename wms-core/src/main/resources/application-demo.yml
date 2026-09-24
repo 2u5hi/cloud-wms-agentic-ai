@@ -1,0 +1,12 @@
+# The deployed demo (ADR 0029): Lambda + RDS. Credentials come from the environment, which Terraform fills in;
+# there are no defaults here, so a missing secret stops the service instead of opening writes (ADR 0027).
+spring:
+  flyway:
+    # The supervisor's demo reset wipes the schema and migrates it again (DemoData).
+    clean-disabled: false
+  datasource:
+    hikari:
+      # Every Lambda instance has its own pool; keep each small so a burst of instances can't exhaust the
+      # smallest RDS instance's connections. One connection is held by a reset's lock while it runs.
+      maximum-pool-size: 4
+      minimum-idle: 1

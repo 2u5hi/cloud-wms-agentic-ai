@@ -92,7 +92,7 @@ not claim to run on Manhattan's cloud:
 |---|---|---|---|
 | Java + Spring microservices | Java 21 + Spring Boot | same, in containers | Yes |
 | Docker images | Docker | ECR | Yes |
-| Google Kubernetes Engine | Docker Compose | ECS Fargate or App Runner (no Kubernetes) | Containers yes, Kubernetes no |
+| Google Kubernetes Engine | Docker Compose | Lambda running the container images ([ADR 0029](adr/0029-serverless-on-lambda.md)) | Container images yes, Kubernetes no |
 | Cloud SQL for MySQL | MySQL 8 container | RDS for MySQL | Yes (MySQL) |
 | Google Pub/Sub | LocalStack (Phase 3) | AWS messaging, chosen in Phase 3 | Event-driven yes, product no |
 | Cloud Logging / Monitoring | logs to stdout | CloudWatch | Different product |

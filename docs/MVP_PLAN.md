@@ -19,14 +19,15 @@ Done and on `main`:
 | Console | Orders, Waves, Wave detail with the diagnosis and Plan/Release/Cancel, Tasks (commit 4) |
 | Agent | `ops-agent` (FastAPI + Haiku), read tools over the public API, proposals approved in the console (commit 5) |
 | Demo scenario | A fresh `dev` database boots into a released wave blocked on a busy reach-truck driver (commit 6) |
+| Deployment | Live at https://dana7rqasft6b.cloudfront.net: Lambda + RDS + CloudFront in Terraform, deploy-on-push after tests, a supervisor reset, keep-warm, budget alerts (commit 8) |
 | Auth | Anyone reads, the agent's token only proposes, the supervisor passcode runs commands; proposals checked when made; the agent reaches Claude through AWS workload identity, with no API key (commit 7) |
 | Platform | READ COMMITTED isolation, retryable 503 on lock conflicts, UTC timestamps end to end |
-| Docs | 28 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
-| Tests | 192 backend, 23 web, 27 agent |
+| Docs | 29 ADRs in [`docs/adr/`](adr/README.md), design doc in sync |
+| Tests | 194 backend, 23 web, 27 agent |
 
 **First live runs** (demo wave, Haiku 4.5): about **$0.008 per investigation** (≈5k input, ≈650 output tokens, two model calls). The first run proposed one fix for two stuck replenishments and overstated its effect; the report now takes one proposal per task, and the WMS refuses a second open proposal for the same task.
 
-Remaining for Phase 1: commit 8 below.
+**Phase 1 is complete.** Phase 2 (the full inbound/outbound workflow) is next; see [`PLAN.md`](PLAN.md).
 
 ---
 
@@ -63,36 +64,33 @@ Each is one commit, with tests, docs (ADR when a decision is made), and a short 
 | 5 ✅ | `feat(agent): investigate and propose fixes` | `ops-agent` (FastAPI + Anthropic SDK), read tools over the public API, grounded answer with evidence, `POST /proposals` in core, approve/reject, execution through the same commands; Haiku default, token and daily budget caps, passcode-protected | "Why is wave N blocked?" returns an explanation citing tool results plus a proposal; approving it reassigns the task, and the blocker clears |
 | 6 ✅ | `feat(devdata): seed the demo scenario` | Orders on the seeded warehouse, one wave planned into the blocked state, workers where only one has `REACH_TRUCK` and is busy | A fresh database reaches the demo state automatically under the `dev` profile |
 | 7 ✅ | `feat(auth): roles for the public, the agent, and supervisors` | Spring Security: anonymous read-only, `AGENT` role from a service token (read + create proposals), `SUPERVISOR` role from the demo passcode (all commands, approve/reject); `CurrentActor` from the credential instead of `X-Agent-Id`; proposal checks at creation (task exists, is open and belongs to the wave; worker exists and is certified); console passcode prompt; agent sends its token; a live run of the agent against the real model on the demo wave | The agent's token gets 403 on `/approve`; anonymous writes get 401; an invalid proposal is rejected at creation; a real Claude investigation of the demo wave proposes giving the replenishments to W-014 |
-| 8 | `feat(deploy): containerize and deploy on AWS` | Dockerfiles for `wms-core` and `ops-agent`; Terraform for containers, RDS for MySQL, S3 + CloudFront for the console, secrets, CORS; GitHub Actions deploy via OIDC; the agent's daily budget moved to the database; seeding safe with more than one instance; a demo reset; README with the live URL and an architecture diagram that marks what is built | The public URL shows the console and the blocked demo wave; a supervisor can run the agent, approve its proposal and see the wave unblock; a reset restores the scenario |
+| 8 ✅ | `feat(deploy): containerize and deploy on AWS` | Dockerfiles for `wms-core` and `ops-agent`; Terraform for containers, RDS for MySQL, S3 + CloudFront for the console, secrets, CORS; GitHub Actions deploy via OIDC; the agent's daily budget moved to the database; seeding safe with more than one instance; a demo reset; README with the live URL and an architecture diagram that marks what is built | The public URL shows the console and the blocked demo wave; a supervisor can run the agent, approve its proposal and see the wave unblock; a reset restores the scenario |
 
 ---
 
 ## 4. Deployment (commit 8)
 
-### Topology
+Live at **https://dana7rqasft6b.cloudfront.net** ([ADR 0029](adr/0029-serverless-on-lambda.md); operating notes in [`deploy/terraform/README.md`](../deploy/terraform/README.md)).
+
 ```
-CloudFront + S3 (console) ──/api/*──► wms-core (container) ──► RDS for MySQL 8
-                          ──/agent/*──► ops-agent (container) ──► Claude API
-                                             └── reads/proposes via wms-core, with its service token
+CloudFront ─┬─ /                       → S3 (console)
+            ├─ /api /demo /actuator    → wms-core Lambda (in the VPC) → RDS MySQL 8.4 (private)
+            └─ /agent                  → ops-agent Lambda → Claude (workload identity), wms-core's URL
 ```
-Region **us-east-1**. Compute (ECS Fargate or App Runner) and instance sizes are chosen against current AWS pricing at the start of the commit.
 
-### Configuration
-| Service | Variable | Notes |
-|---|---|---|
-| wms-core | `MYSQL_URL`, `MYSQL_USER`, `MYSQL_PASSWORD` | From RDS, via AWS-managed secrets |
-| wms-core | `SPRING_PROFILES_ACTIVE=dev` | Seeds the demo warehouse on first boot |
-| wms-core | `DEMO_PASSCODE`, `AGENT_TOKEN` | The supervisor credential and the agent's service token |
-| ops-agent | `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID` | Workload identity for the ops-agent task role ([ADR 0028](adr/0028-claude-via-workload-identity.md)); a second rule, pinned to that role's exact ARN. **No Anthropic key exists** |
-| ops-agent | `WMS_API_URL`, `AGENT_TOKEN`, `DEMO_PASSCODE` | |
-| ops-agent | `AGENT_MODEL`, `AGENT_DAILY_BUDGET_USD`, `AGENT_MAX_TOOL_CALLS` | Cost caps |
+Region **us-east-1**. App Runner was the plan until it turned out to be closed to new customers; ECS Express Mode would have cost ~$65–70/month for always-on containers and a load balancer. Lambda from the same container images costs ~$0 when idle.
 
-### Who does what
-- **Claude** writes the Dockerfiles, Terraform and workflow, runs `terraform` and the `aws` CLI, deploys, and smoke-tests the live URL.
-- **Dhanush** approves the first `terraform apply` and creates the deployed agent's federation rule in the Claude Console (Claude gives the exact values). The AWS CLI runs as the project's `wmsai-dev` IAM user (profile `wmscb-dev`); `aws login` did not work for it, so it uses an access key Dhanush entered. No Anthropic key is involved.
+| Piece | Where it comes from |
+|---|---|
+| Database password, supervisor passcode, agent token | Generated by Terraform; `terraform output -raw supervisor_passcode` |
+| Claude access | The `cloud-wms-ops-agent` role, trusted by the `ops-agent-deployed` rule in the Claude Console. No Anthropic key exists |
+| Code | `deploy.yml` on every push to main, after all three test workflows pass, through an OIDC role that can only ship code |
+| Infrastructure | `terraform apply` from `deploy/terraform`, by hand |
+| Budget alert | `terraform.tfvars` (not committed): email at 50/80/100% of $20/month, and on a forecast over it |
 
-### Cost
-Depends on the account's free tier (see the Free Tier page in the AWS billing console). Without one, the smallest RDS instance plus two small containers is roughly $20–30/month. The agent costs a few cents per investigation on Haiku 4.5, capped by a daily budget.
+**Cost:** ~$15/month, nearly all RDS, currently covered by the account's AWS credits. Stopping the database between demos drops it to ~$2. Each agent investigation is ~$0.008 of API credits.
+
+**Found while deploying:** Docker Desktop pushes images with attestation manifests Lambda rejects (build with `--provenance=false --sbom=false`, as `deploy.yml` does); Git Bash rewrites `/paths` passed to the AWS CLI (`MSYS_NO_PATHCONV=1`); the account's Lambda concurrency limit is 10, so the agent can't be pinned to one instance and the Anthropic workspace spend limit is the hard cap.
 
 ---
 

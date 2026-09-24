@@ -1,0 +1,84 @@
+name: deploy
+
+# Every push to main: run all three test workflows, and only if every one passes, ship the new code to the
+# demo (ADR 0029). Infrastructure changes are not made here; they go through `terraform apply` deliberately.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false # never interrupt a deploy halfway
+
+env:
+  AWS_REGION: us-east-1
+  # Not secrets: an account ID, role and resource names. Access is granted by the role's trust policy, which
+  # only accepts GitHub's OIDC token for this repository's main branch (deploy/terraform/github.tf).
+  DEPLOY_ROLE: arn:aws:iam::077905368383:role/cloud-wms-github-deploy
+  REGISTRY: 077905368383.dkr.ecr.us-east-1.amazonaws.com
+  CONSOLE_BUCKET: cloud-wms-console-077905368383
+
+jobs:
+  wms-core:
+    uses: ./.github/workflows/wms-core.yml
+  web:
+    uses: ./.github/workflows/web.yml
+  ops-agent:
+    uses: ./.github/workflows/ops-agent.yml
+
+  deploy:
+    needs: [wms-core, web, ops-agent]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # to exchange GitHub's OIDC token for short-lived AWS credentials
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        # Lambda only accepts a plain Docker v2 manifest: no build attestations, no OCI index.
+        run: |
+          for service in wms-core ops-agent; do
+            docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+              --output type=registry,oci-mediatypes=false \
+              -t "$REGISTRY/cloud-wms/$service:${GITHUB_SHA::7}" "$service"
+          done
+
+      - name: Update the functions
+        run: |
+          for service in wms-core ops-agent; do
+            aws lambda update-function-code --function-name "cloud-wms-$service" \
+              --image-uri "$REGISTRY/cloud-wms/$service:${GITHUB_SHA::7}" > /dev/null
+            aws lambda wait function-updated-v2 --function-name "cloud-wms-$service"
+          done
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Publish the console
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+          # Hashed assets can be cached forever; index.html must always be fresh.
+          aws s3 sync dist "s3://$CONSOLE_BUCKET" --delete --exclude index.html \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp dist/index.html "s3://$CONSOLE_BUCKET/index.html" --cache-control "no-cache"
+          distribution=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='Cloud WMS console and API'].Id | [0]" --output text)
+          aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/index.html" > /dev/null

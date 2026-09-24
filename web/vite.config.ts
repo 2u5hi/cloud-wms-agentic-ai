@@ -21,6 +21,7 @@ export default defineConfig({
       '/api': wmsCore,
       '/actuator': wmsCore,
       '/v3': wmsCore,
+      '/demo': wmsCore,
       // The agent is its own service; the console never calls Anthropic directly.
       '/agent': { target: opsAgent, rewrite: (path) => path.replace(/^\/agent/, '') },
     },
