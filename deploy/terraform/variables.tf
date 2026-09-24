@@ -39,7 +39,9 @@ variable "agent_daily_budget_usd" {
 }
 
 variable "github_repository" {
-  description = "owner/name of the repository allowed to deploy through GitHub Actions"
+  description = "The repository allowed to deploy, as GitHub's OIDC token names it: owner@id/name@id"
   type        = string
-  default     = "2u5hi/cloud-wms-agentic-ai"
+  # GitHub includes the owner's and repository's immutable IDs, so a renamed or re-registered repository with
+  # the same name can't deploy here.
+  default = "2u5hi@73974045/cloud-wms-agentic-ai@1381370200"
 }
