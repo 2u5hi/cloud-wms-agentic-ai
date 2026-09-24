@@ -18,10 +18,12 @@ data "aws_iam_policy_document" "github_assume" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # The deploy job runs in the "demo" GitHub environment (which is what shows it under Deployments on the repo),
+    # so GitHub's token names the environment rather than the branch. The workflow only deploys from main.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values   = ["repo:${var.github_repository}:environment:demo"]
     }
   }
 }

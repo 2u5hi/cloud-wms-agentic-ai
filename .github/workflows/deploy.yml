@@ -32,6 +32,11 @@ jobs:
 
   deploy:
     needs: [wms-core, web, ops-agent]
+    if: github.ref == 'refs/heads/main'
+    # Recorded as a GitHub deployment, so the repository's sidebar links to the live demo.
+    environment:
+      name: demo
+      url: https://dana7rqasft6b.cloudfront.net
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

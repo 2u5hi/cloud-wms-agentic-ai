@@ -15,7 +15,11 @@ CloudFront distribution.
 | `budget.tf` | Email alerts at 50/80/100% of the monthly budget and on a forecast; at 100% AWS stops the database itself |
 
 Code ships on every push to main through [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml),
-after all tests pass. Infrastructure changes are a deliberate `terraform apply` from here.
+after all tests pass, as a deployment to the `demo` GitHub environment (the repository sidebar links to it).
+Infrastructure changes are a deliberate `terraform apply` from here.
+
+The URL is CloudFront's generated one. A readable one needs a domain (~$10–12/year); the certificate (ACM) and an
+alias on the distribution would go in `web.tf`.
 
 ## Operating the demo
 
