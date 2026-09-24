@@ -6,13 +6,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springdoc.core.customizers.OperationCustomizer;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.bind.annotation.PostMapping;
 
 @Configuration(proxyBeanMethods = false)
 class OpenApiConfig {
@@ -27,7 +32,23 @@ class OpenApiConfig {
 			.info(new Info().title("WMS Core API")
 				.version("v1")
 				.description("Warehouse management core: inventory, orders, waves, tasks, and execution."))
-			.servers(List.of(new Server().url("http://localhost:8080").description("Local development")));
+			.servers(List.of(new Server().url("http://localhost:8080").description("Local development")))
+			.components(new Components().addSecuritySchemes(BEARER, new SecurityScheme().type(SecurityScheme.Type.HTTP)
+				.scheme("bearer")
+				.description("The supervisor passcode, or the agent's service token (ADR 0027). Reads need none.")));
+	}
+
+	static final String BEARER = "bearer";
+
+	/** Every command needs a credential; reads are public. Which role a command needs is in its description. */
+	@Bean
+	OperationCustomizer commandsNeedACredential() {
+		return (operation, handlerMethod) -> {
+			if (handlerMethod.hasMethodAnnotation(PostMapping.class)) {
+				operation.addSecurityItem(new SecurityRequirement().addList(BEARER));
+			}
+			return operation;
+		};
 	}
 
 	/**

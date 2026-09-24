@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     wms_api_url: str = Field(default="http://localhost:8080", alias="WMS_API_URL")
+    # How the agent reaches Claude (ADR 0028). Workload identity federation is preferred: the process's
+    # AWS role gets a signed identity token from STS and Anthropic swaps it for a short-lived access
+    # token, so there is no key to store. The IDs below are not secrets. An API key is a local fallback.
+    federation_rule_id: str = Field(default="", alias="ANTHROPIC_FEDERATION_RULE_ID")
+    organization_id: str = Field(default="", alias="ANTHROPIC_ORGANIZATION_ID")
+    service_account_id: str = Field(default="", alias="ANTHROPIC_SERVICE_ACCOUNT_ID")
+    workspace_id: str = Field(default="", alias="ANTHROPIC_WORKSPACE_ID")
+    aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     model: str = Field(default="claude-haiku-4-5-20251001", alias="AGENT_MODEL")
     # Caps. An investigation reads structured summaries (ADR 0022), so a handful of calls is plenty;
@@ -22,14 +30,20 @@ class Settings(BaseSettings):
     # Haiku 4.5 list price, USD per million tokens. Used only to enforce the daily cap.
     input_usd_per_mtok: float = Field(default=1.0, alias="AGENT_INPUT_USD_PER_MTOK")
     output_usd_per_mtok: float = Field(default=5.0, alias="AGENT_OUTPUT_USD_PER_MTOK")
-    # Shared secret for the deployed demo; empty means the service is open (local development).
+    # The agent's own credential for wms-core: read and propose, never execute (ADR 0027).
+    agent_token: str = Field(default="dev-agent-token", alias="AGENT_TOKEN")
+    # The supervisor passcode, required to start an investigation because each one costs money. Empty means
+    # open, which is only for local development.
     demo_passcode: str = Field(default="", alias="DEMO_PASSCODE")
-    agent_id: str = Field(default="ops-agent", alias="AGENT_ID")
     request_timeout_seconds: float = Field(default=30.0, alias="AGENT_REQUEST_TIMEOUT_SECONDS")
 
     @property
+    def federated(self) -> bool:
+        return bool(self.federation_rule_id and self.organization_id)
+
+    @property
     def configured(self) -> bool:
-        return bool(self.anthropic_api_key)
+        return self.federated or bool(self.anthropic_api_key)
 
 
 settings = Settings()

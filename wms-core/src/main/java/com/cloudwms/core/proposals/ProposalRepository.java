@@ -56,6 +56,17 @@ class ProposalRepository {
 			.update();
 	}
 
+	/** An open proposal of this kind for this task, if one is already waiting on a decision. */
+	Optional<Long> openForTask(ProposalKind kind, long taskId) {
+		return jdbc.sql("""
+				SELECT id FROM proposal
+				WHERE status = 'PROPOSED' AND kind = ? AND CAST(JSON_EXTRACT(payload, '$.task') AS UNSIGNED) = ?
+				ORDER BY id LIMIT 1""")
+			.params(kind.name(), taskId)
+			.query(Long.class)
+			.optional();
+	}
+
 	Optional<ProposalRow> find(long id) {
 		return jdbc.sql(SELECT + "WHERE id = ?").param(id).query(this::map).optional();
 	}

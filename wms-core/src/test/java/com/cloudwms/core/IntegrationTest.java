@@ -15,9 +15,10 @@ import org.springframework.context.annotation.Import;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest
+@SpringBootTest(properties = { "wms.auth.supervisor-passcode=" + TestCredentials.SUPERVISOR_PASSCODE,
+		"wms.auth.agent-token=" + TestCredentials.AGENT_TOKEN })
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, TestCredentials.class })
 public @interface IntegrationTest {
 
 }

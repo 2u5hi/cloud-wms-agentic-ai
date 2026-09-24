@@ -66,19 +66,28 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "One line per fact you used, each naming where it came from, "
                     "e.g. 'diagnosis: task 5 needs REACH_TRUCK' or 'workers: W-014 is certified, on break'.",
                 },
-                "proposal": {
-                    "type": "object",
-                    "description": "Omit when nothing can be fixed by reassigning work.",
-                    "properties": {
-                        "kind": {"type": "string", "enum": ["REASSIGN_TASK"]},
-                        "task": {"type": "integer", "description": "The blocked task to hand over"},
-                        "worker": {
-                            "type": "string",
-                            "description": "Worker code, who must be certified for the task's equipment",
+                "proposals": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "description": "One per blocked task you can fix by reassigning it. Empty when nothing "
+                    "can be fixed that way. Skip tasks that already have an open proposal.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "kind": {"type": "string", "enum": ["REASSIGN_TASK"]},
+                            "task": {"type": "integer", "description": "The blocked task to hand over"},
+                            "worker": {
+                                "type": "string",
+                                "description": "Worker code, who must be certified for the task's equipment",
+                            },
+                            "rationale": {
+                                "type": "string",
+                                "description": "Why this worker, in one sentence. Any impact you claim "
+                                "must be this task's own affectedPicks from the diagnosis.",
+                            },
                         },
-                        "rationale": {"type": "string", "description": "Why this worker, in one sentence"},
+                        "required": ["kind", "task", "worker", "rationale"],
                     },
-                    "required": ["kind", "task", "worker", "rationale"],
                 },
             },
             "required": ["answer", "evidence"],

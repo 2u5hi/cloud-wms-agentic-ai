@@ -12,9 +12,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 
-/** Seeds the demo warehouse and its blocked-wave scenario on startup, only with the {@code dev} profile. */
+/**
+ * Seeds the demo warehouse and its blocked-wave scenario on startup. {@code dev} is local development (with local
+ * credentials, see application-dev.yml); {@code demo} is the deployed demo, which seeds but takes its credentials
+ * from secrets.
+ */
 @Configuration(proxyBeanMethods = false)
-@Profile("dev")
+@Profile({ "dev", "demo" })
 class DevDataConfig {
 
 	@Bean

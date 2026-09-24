@@ -87,18 +87,37 @@ public class TaskExecutionService {
 	@Transactional
 	public void reassign(long taskId, String workerCode) {
 		TaskRow task = task(taskId);
+		WorkerRow worker = worker(workerCode);
+		requireReassignable(task, worker);
+		repository.assign(taskId, worker.id(), "ASSIGNED");
+	}
+
+	/**
+	 * Everything {@link #reassign} checks, without changing anything, plus that the task belongs to the given wave.
+	 * Proposals call this when they are made, so a suggestion that could never run is refused up front instead of
+	 * waiting for a supervisor to find out.
+	 */
+	@Transactional(readOnly = true)
+	public void checkReassign(long taskId, String workerCode, Long waveId) {
+		TaskRow task = task(taskId);
+		if (waveId != null && !waveId.equals(task.waveId())) {
+			throw new DomainException(ErrorCode.PRECONDITION_FAILED,
+					"Task %d is not part of wave %d".formatted(taskId, waveId), Map.of("task", taskId, "wave", waveId));
+		}
+		requireReassignable(task, worker(workerCode));
+	}
+
+	private void requireReassignable(TaskRow task, WorkerRow worker) {
 		if (task.status().equals("COMPLETED") || task.status().equals("CANCELLED")) {
 			throw new DomainException(ErrorCode.INVALID_STATE_TRANSITION,
-					"Cannot reassign task %d: it is %s".formatted(taskId, task.status()),
-					Map.of("task", taskId, "status", task.status()));
+					"Cannot reassign task %d: it is %s".formatted(task.id(), task.status()),
+					Map.of("task", task.id(), "status", task.status()));
 		}
-		WorkerRow worker = worker(workerCode);
 		if (task.requiredEquipment() != null && !repository.equipment(worker.id()).contains(task.requiredEquipment())) {
 			throw new DomainException(ErrorCode.NOT_ELIGIBLE,
 					"Worker %s is not certified for %s".formatted(worker.code(), task.requiredEquipment()),
 					Map.of("worker", worker.code(), "equipment", task.requiredEquipment()));
 		}
-		repository.assign(taskId, worker.id(), "ASSIGNED");
 	}
 
 	private WorkerRow worker(String code) {

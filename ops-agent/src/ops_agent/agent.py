@@ -21,12 +21,17 @@ Rules:
 - Every statement you make must come from the diagnosis or a tool result. Never invent task ids, worker \
 codes, quantities or locations.
 - Be brief and concrete. A supervisor reads this between other jobs.
-- You cannot change anything yourself. If a reassignment would unblock the wave, include it as a proposal \
-in your report; a human approves it and the WMS runs it.
+- You cannot change anything yourself. If reassigning work would unblock the wave, include proposals in \
+your report; a human approves each one and the WMS runs it.
+- Propose one fix per blocked task. If two replenishments are stuck for the same reason, that is two \
+proposals, not one.
+- Only claim an impact the diagnosis supports: fixing a replenishment frees exactly that blocker's \
+affectedPicks, no more.
+- Don't propose anything already listed under open proposals; a supervisor is deciding on those.
 - Only propose a worker who is certified for the equipment the task needs. A worker on BREAK or BUSY can \
 be proposed (the supervisor decides whether to pull them off), but an uncertified one cannot.
 - If nothing can be fixed by moving work between people - for example when stock simply does not exist - \
-say so plainly and leave the proposal out.
+say so plainly and leave proposals empty.
 
 Finish by calling the `report` tool exactly once."""
 
@@ -60,7 +65,7 @@ class Investigation:
     wave: int
     answer: str
     evidence: list[str]
-    proposal: dict[str, Any] | None
+    proposals: list[dict[str, Any]]
     tool_calls: list[str] = field(default_factory=list)
     usage: dict[str, Any] = field(default_factory=dict)
 
@@ -114,11 +119,15 @@ class OpsAgent:
         """
         self._budget.check()
         diagnosis = await self._wms.diagnosis(wave)
+        # Also deterministic and cheap: what is already waiting on a supervisor, so it isn't proposed twice.
+        pending = await self._wms.open_proposals(wave)
+        open_text = json.dumps(pending, indent=2) if pending else "none"
         messages: list[dict[str, Any]] = [
             {
                 "role": "user",
                 "content": f"{question or f'Why is wave {wave} not finishing, and what should I do?'}\n\n"
-                f"Diagnosis of wave {wave} from the WMS:\n{json.dumps(diagnosis, indent=2)}",
+                f"Diagnosis of wave {wave} from the WMS:\n{json.dumps(diagnosis, indent=2)}\n\n"
+                f"Open proposals awaiting a decision:\n{open_text}",
             }
         ]
         usage = Usage()
@@ -152,7 +161,7 @@ class OpsAgent:
                     wave=wave,
                     answer=text or "The agent did not produce an answer.",
                     evidence=[],
-                    proposal=None,
+                    proposals=[],
                     tool_calls=called,
                     usage=self._usage_view(usage),
                 )
@@ -171,7 +180,7 @@ class OpsAgent:
             wave=wave,
             answer="The agent ran out of its tool-call budget before reaching a conclusion.",
             evidence=[],
-            proposal=None,
+            proposals=[],
             tool_calls=called,
             usage=self._usage_view(usage),
         )
@@ -179,10 +188,12 @@ class OpsAgent:
     async def _finish(
         self, wave: int, report: dict[str, Any], called: list[str], usage: Usage
     ) -> Investigation:
-        """Turns the model's report into a stored proposal. The WMS validates the payload, not the model."""
-        proposed = report.get("proposal")
-        stored: dict[str, Any] | None = None
-        if proposed:
+        """
+        Files each proposed fix with the WMS. The WMS validates every one, not the model: a proposal it
+        refuses comes back with the reason instead of being dropped, so the supervisor sees what was tried.
+        """
+        stored: list[dict[str, Any]] = []
+        for proposed in (report.get("proposals") or [])[:5]:
             body = {
                 "kind": proposed.get("kind", "REASSIGN_TASK"),
                 "wave": wave,
@@ -191,14 +202,14 @@ class OpsAgent:
                 "evidence": report.get("evidence") or ["diagnosis"],
             }
             try:
-                stored = await self._wms.create_proposal(body)
+                stored.append(await self._wms.create_proposal(body))
             except WmsError as error:
-                stored = {"error": str(error), "code": error.code}
+                stored.append({"error": str(error), "code": error.code, "payload": body["payload"]})
         return Investigation(
             wave=wave,
             answer=report["answer"],
             evidence=report.get("evidence", []),
-            proposal=stored,
+            proposals=stored,
             tool_calls=called,
             usage=self._usage_view(usage),
         )

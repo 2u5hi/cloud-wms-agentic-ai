@@ -1,5 +1,6 @@
 package com.cloudwms.core.proposals;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,6 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.cloudwms.core.IntegrationTest;
+import com.cloudwms.core.TestCredentials;
 import com.cloudwms.core.inventory.InventoryService;
 import com.cloudwms.core.inventory.domain.InventoryMovement;
 import com.cloudwms.core.shared.actor.Actor;
@@ -22,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
@@ -134,9 +137,12 @@ class ProposalApiTest {
 	}
 
 	@Test
-	void aFailedCommandChangesNothingAndLeavesTheProposalOpen() throws Exception {
-		worker(prefix + "-PICKER", null);
-		long proposal = propose(replenishment, prefix + "-PICKER");
+	void aProposalTheWarehouseHasMovedPastChangesNothingAndStaysOpen() throws Exception {
+		long proposal = propose(replenishment, prefix + "-DRIVER");
+		// Between proposing and approving, the driver's certification lapses.
+		jdbc.sql("DELETE FROM worker_equipment WHERE worker_id = (SELECT id FROM worker WHERE code = ?)")
+			.param(prefix + "-DRIVER")
+			.update();
 
 		mockMvc.perform(command("/api/v1/proposals/" + proposal + "/approve"))
 			.andExpect(status().isConflict())
@@ -146,6 +152,85 @@ class ProposalApiTest {
 		mockMvc.perform(get("/api/v1/tasks/{id}", replenishment))
 			.andExpect(jsonPath("$.status").value("READY"))
 			.andExpect(jsonPath("$.assignedWorker").doesNotExist());
+	}
+
+	@Test
+	void anUncertifiedWorkerIsRefusedWhenProposed() throws Exception {
+		worker(prefix + "-PICKER", null);
+
+		proposeExpecting(replenishment, prefix + "-PICKER", wave).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("NOT_ELIGIBLE"))
+			.andExpect(jsonPath("$.detail").value("Worker " + prefix + "-PICKER is not certified for REACH_TRUCK"));
+		mockMvc.perform(get("/api/v1/proposals").param("wave", String.valueOf(wave)))
+			.andExpect(jsonPath("$.items.length()").value(0));
+	}
+
+	@Test
+	void aSecondOpenProposalForTheSameTaskIsRefused() throws Exception {
+		long first = propose(replenishment, prefix + "-DRIVER");
+
+		proposeExpecting(replenishment, prefix + "-DRIVER", wave).andExpect(status().isPreconditionFailed())
+			.andExpect(jsonPath("$.detail")
+				.value("Proposal %d already covers task %d and is awaiting a decision".formatted(first, replenishment)));
+
+		// Once decided, the task can be proposed again.
+		mockMvc.perform(command("/api/v1/proposals/" + first + "/reject")).andExpect(status().isOk());
+		proposeExpecting(replenishment, prefix + "-DRIVER", wave).andExpect(status().isCreated());
+	}
+
+	@Test
+	void aTaskFromAnotherWaveIsRefused() throws Exception {
+		proposeExpecting(replenishment, prefix + "-DRIVER", wave + 100_000).andExpect(status().isPreconditionFailed())
+			.andExpect(jsonPath("$.code").value("PRECONDITION_FAILED"));
+	}
+
+	@Test
+	void aFinishedTaskIsRefused() throws Exception {
+		mockMvc.perform(command("/api/v1/tasks/" + replenishment + "/reassign").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"worker\": \"%s\"}".formatted(prefix + "-DRIVER"))).andExpect(status().isOk());
+		mockMvc.perform(command("/api/v1/tasks/" + replenishment + "/complete")).andExpect(status().isOk());
+
+		proposeExpecting(replenishment, prefix + "-DRIVER", wave).andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("INVALID_STATE_TRANSITION"));
+	}
+
+	@Test
+	void theAgentCanProposeButNeverDecide() throws Exception {
+		long proposal = propose(replenishment, prefix + "-DRIVER");
+
+		for (String decision : new String[] { "approve", "reject" }) {
+			mockMvc
+				.perform(command("/api/v1/proposals/" + proposal + "/" + decision).header("Authorization",
+						TestCredentials.AGENT))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("FORBIDDEN"))
+				.andExpect(jsonPath("$.detail").value("The agent can propose fixes but not run them; a supervisor approves"));
+		}
+		mockMvc.perform(get("/api/v1/proposals/{id}", proposal)).andExpect(jsonPath("$.status").value("PROPOSED"));
+		mockMvc.perform(get("/api/v1/tasks/{id}", replenishment)).andExpect(jsonPath("$.status").value("READY"));
+	}
+
+	@Test
+	void theAgentCannotRunTheCommandItselfEither() throws Exception {
+		mockMvc
+			.perform(command("/api/v1/tasks/" + replenishment + "/reassign").header("Authorization", TestCredentials.AGENT)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"worker\": \"%s\"}".formatted(prefix + "-DRIVER")))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(get("/api/v1/tasks/{id}", replenishment)).andExpect(jsonPath("$.status").value("READY"));
+	}
+
+	@Test
+	void aSupervisorsProposalIsAttributedToThem() throws Exception {
+		String body = proposeExpecting(replenishment, prefix + "-DRIVER", wave, TestCredentials.SUPERVISOR)
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		assertThat((String) JsonPath.read(body, "$.createdBy.type")).isEqualTo("HUMAN");
+		assertThat((String) JsonPath.read(body, "$.createdBy.id")).isEqualTo("demo-supervisor");
 	}
 
 	@Test
@@ -169,20 +254,28 @@ class ProposalApiTest {
 			.andExpect(jsonPath("$.items[0].payload.worker").value(prefix + "-DRIVER"));
 	}
 
+	/** Proposes as the agent and expects it to be accepted. */
 	private long propose(long task, String worker) throws Exception {
-		String body = mockMvc
-			.perform(command("/api/v1/proposals").header("X-Agent-Id", "ops-agent")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("""
-						{"kind": "REASSIGN_TASK", "wave": %d, "payload": {"task": %d, "worker": "%s"},
-						 "rationale": "Nobody available is certified for REACH_TRUCK; %s is, and is on break.",
-						 "evidence": ["diagnosis: NO_ELIGIBLE_WORKER_AVAILABLE"]}"""
-					.formatted(wave, task, worker, worker)))
-			.andExpect(status().isCreated())
+		String body = proposeExpecting(task, worker, wave).andExpect(status().isCreated())
 			.andReturn()
 			.getResponse()
 			.getContentAsString();
 		return ((Number) JsonPath.read(body, "$.id")).longValue();
+	}
+
+	private ResultActions proposeExpecting(long task, String worker, long forWave) throws Exception {
+		return proposeExpecting(task, worker, forWave, TestCredentials.AGENT);
+	}
+
+	private ResultActions proposeExpecting(long task, String worker, long forWave, String credential)
+			throws Exception {
+		return mockMvc.perform(command("/api/v1/proposals").header("Authorization", credential)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("""
+					{"kind": "REASSIGN_TASK", "wave": %d, "payload": {"task": %d, "worker": "%s"},
+					 "rationale": "Nobody available is certified for REACH_TRUCK; %s is, and is on break.",
+					 "evidence": ["diagnosis: NO_ELIGIBLE_WORKER_AVAILABLE"]}"""
+				.formatted(forWave, task, worker, worker)));
 	}
 
 	private void worker(String code, String equipment) throws Exception {

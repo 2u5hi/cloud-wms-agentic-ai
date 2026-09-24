@@ -24,7 +24,7 @@ the transferable skill is; the hosting underneath is AWS.
 | `wms-core`, `ops-agent` | Containers on ECS Fargate or App Runner, picked on current pricing in the deploy commit | GKE / Cloud Run |
 | Database | RDS for MySQL 8 | Cloud SQL for MySQL |
 | Console | S3 + CloudFront | Vercel |
-| Secrets | AWS-managed secrets; the Anthropic key is entered by Dhanush, never committed or seen by Claude | Railway variables |
+| Secrets | AWS-managed secrets for the demo passcode and agent token. No Anthropic key: the agent uses workload identity federation ([ADR 0028](0028-claude-via-workload-identity.md)) | Railway variables |
 | Messaging (Phase 3) | AWS messaging with per-aggregate ordering and dead-letter queues, LocalStack locally; the exact service is decided in Phase 3 | Pub/Sub + emulator |
 | Identity (Phase 5) | Cognito, with custom scopes for the agent's client-credentials access | Keycloak |
 | Infrastructure | **Terraform**, applied by GitHub Actions using OIDC (no long-lived AWS keys in the repo) | Kustomize on kind/GKE |
@@ -34,8 +34,8 @@ Terraform over CDK: it is provider-neutral, so moving the same system to another
 rewrite of the modules, not of the tooling, and it is what most client environments already use.
 
 ## Consequences
-- The model integration is unchanged: `ops-agent` calls the Anthropic API directly. Bedrock stays an option
-  if IAM-based model access is ever worth the switch.
+- `ops-agent` calls the Anthropic API directly, authenticated by its AWS role through workload identity
+  federation, which gives it IAM-based access without moving to Bedrock. Region: us-east-1.
 - Cost: the AWS account's free tier depends on when it was created; without it, the smallest managed MySQL
   plus two small containers is roughly $20–30/month. Sizes are chosen against current prices in the deploy
   commit, and the agent's daily budget caps model spend separately.

@@ -84,12 +84,24 @@ public class ProposalService {
 		return proposal;
 	}
 
-	/** Payload shape is checked when the proposal is made, not when somebody approves it. */
+	/**
+	 * A proposal must be runnable when it is made: the right shape, and passing the same checks the command itself
+	 * will apply. The model's suggestion is data from outside the system, so the WMS decides whether it is valid,
+	 * not the model. Approval checks again, because the warehouse may have moved on in between.
+	 */
 	private void validate(NewProposal proposal) {
 		switch (proposal.kind()) {
 			case REASSIGN_TASK -> {
-				longValue(proposal.payload(), "task");
-				stringValue(proposal.payload(), "worker");
+				long task = longValue(proposal.payload(), "task");
+				tasks.checkReassign(task, stringValue(proposal.payload(), "worker"), proposal.waveId());
+				// Two open proposals for one task would ask a supervisor to decide the same thing twice, and
+				// approving one would quietly make the other wrong. Checked here, whatever the agent was told.
+				repository.openForTask(proposal.kind(), task)
+					.ifPresent(open -> {
+						throw new DomainException(ErrorCode.PRECONDITION_FAILED,
+								"Proposal %d already covers task %d and is awaiting a decision".formatted(open, task),
+								Map.of("proposal", open, "task", task));
+					});
 			}
 		}
 	}

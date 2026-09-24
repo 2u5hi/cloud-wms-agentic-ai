@@ -2,6 +2,7 @@ import { Boxes, ClipboardList, LayoutDashboard, ListChecks, Waves, Warehouse } f
 import { NavLink, Outlet, useMatches } from 'react-router'
 
 import { ApiStatus } from '@/components/layout/ApiStatus'
+import { SupervisorSignIn } from '@/components/layout/SupervisorSignIn'
 import { cn } from '@/lib/utils'
 
 // Only pages that exist are listed here; entries are added as features are built.
@@ -51,7 +52,10 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-border px-6">
           <h1 className="text-sm font-medium">{title}</h1>
-          <ApiStatus />
+          <div className="flex items-center gap-3">
+            <SupervisorSignIn />
+            <ApiStatus />
+          </div>
         </header>
         <main className="flex-1 p-6">
           <Outlet />

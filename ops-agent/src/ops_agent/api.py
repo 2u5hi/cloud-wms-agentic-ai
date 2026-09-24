@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import secrets
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
-from anthropic import AsyncAnthropic
+import anthropic
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .agent import BudgetExceeded, DailyBudget, OpsAgent
 from .config import settings
+from .credentials import anthropic_client
 from .wms import WmsClient, WmsError
 
 budget = DailyBudget(settings.daily_budget_usd)
@@ -18,11 +20,10 @@ budget = DailyBudget(settings.daily_budget_usd)
 async def lifespan(app: FastAPI):
     app.state.wms = WmsClient(
         settings.wms_api_url,
-        passcode=settings.demo_passcode,
-        agent_id=settings.agent_id,
+        token=settings.agent_token,
         timeout=settings.request_timeout_seconds,
     )
-    app.state.anthropic = AsyncAnthropic(api_key=settings.anthropic_api_key) if settings.configured else None
+    app.state.anthropic, app.state.auth = anthropic_client(settings)
     yield
     await app.state.wms.aclose()
 
@@ -43,15 +44,33 @@ class InvestigateResponse(BaseModel):
     wave: int
     answer: str
     evidence: list[str]
-    proposal: dict[str, Any] | None
+    proposals: list[dict[str, Any]]
     toolCalls: list[str]
     usage: dict[str, Any]
 
 
-def authorize(x_demo_passcode: Annotated[str | None, Header()] = None) -> None:
-    """The deployed demo is public; the passcode keeps the bill down, not secrets in."""
-    if settings.demo_passcode and x_demo_passcode != settings.demo_passcode:
-        raise HTTPException(status_code=401, detail="Wrong or missing demo passcode")
+def authorize(authorization: Annotated[str | None, Header()] = None) -> None:
+    """
+    Only a supervisor can start an investigation: each one costs money. Same credential and header as
+    wms-core, so the console sends one thing to both.
+    """
+    if not settings.demo_passcode:
+        return
+    presented = (authorization or "").removeprefix("Bearer ").strip()
+    if not secrets.compare_digest(presented.encode(), settings.demo_passcode.encode()):
+        raise HTTPException(
+            status_code=401,
+            detail="Sign in as a supervisor to ask the agent"
+            if authorization is None
+            else "Those credentials were not recognised",
+        )
+
+
+def provider_message(error: anthropic.APIStatusError) -> str:
+    """The provider's own explanation, e.g. "Your credit balance is too low", without the request id noise."""
+    body = error.body if isinstance(error.body, dict) else {}
+    detail = body.get("error", {}) if isinstance(body.get("error"), dict) else {}
+    return detail.get("message") or error.message
 
 
 @app.get("/health")
@@ -60,6 +79,8 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "model": settings.model,
         "configured": settings.configured,
+        # How it reaches Claude, never the credential itself.
+        "auth": getattr(app.state, "auth", "none"),
         "spentTodayUsd": budget.spent_usd,
         "dailyBudgetUsd": settings.daily_budget_usd,
     }
@@ -70,7 +91,8 @@ async def investigate(request: InvestigateRequest) -> InvestigateResponse:
     if app.state.anthropic is None:
         raise HTTPException(
             status_code=503,
-            detail="The agent has no API key configured; the console still shows the WMS diagnosis.",
+            detail="The agent has no Claude credentials configured; "
+            "the console still shows the WMS diagnosis.",
         )
     agent = OpsAgent(app.state.anthropic, app.state.wms, settings, budget)
     try:
@@ -79,11 +101,18 @@ async def investigate(request: InvestigateRequest) -> InvestigateResponse:
         raise HTTPException(status_code=429, detail=str(error)) from error
     except WmsError as error:
         raise HTTPException(status_code=error.status or 502, detail=str(error)) from error
+    except anthropic.APIStatusError as error:
+        # The model provider refused (billing, rate limit, overload): say why instead of a bare 500.
+        raise HTTPException(
+            status_code=502, detail=f"Claude refused the request: {provider_message(error)}"
+        ) from error
+    except anthropic.APIConnectionError as error:
+        raise HTTPException(status_code=502, detail="Could not reach Claude; try again shortly") from error
     return InvestigateResponse(
         wave=result.wave,
         answer=result.answer,
         evidence=result.evidence,
-        proposal=result.proposal,
+        proposals=result.proposals,
         toolCalls=result.tool_calls,
         usage=result.usage,
     )

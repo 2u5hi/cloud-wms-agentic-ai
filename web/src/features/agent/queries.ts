@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/api/client'
 import { commandHeaders } from '@/api/command'
+import { credentials } from '@/api/credentials'
 import { problemMessage } from '@/api/errors'
 import type { components } from '@/api/schema'
 
@@ -14,7 +15,8 @@ export type Investigation = {
   wave: number
   answer: string
   evidence: string[]
-  proposal: (Proposal & { error?: string }) | null
+  /** Each fix the agent filed; the ones the WMS refused carry the reason instead of a stored proposal. */
+  proposals: (Proposal | { error: string; code?: string; payload: { task: number; worker: string } })[]
   toolCalls: string[]
   usage: { costUsd: number; model: string; inputTokens: number; outputTokens: number }
 }
@@ -25,7 +27,8 @@ export function useInvestigate(wave: number) {
     mutationFn: async (question?: string) => {
       const response = await fetch(`${AGENT_BASE}/investigate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Starting an investigation costs money, so the agent asks for the supervisor's credential too.
+        headers: { 'Content-Type': 'application/json', ...credentials.headers() },
         body: JSON.stringify({ wave, question }),
       })
       const body = await response.json().catch(() => null)

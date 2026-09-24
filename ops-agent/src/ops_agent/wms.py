@@ -18,15 +18,13 @@ class WmsError(RuntimeError):
 class WmsClient:
     """
     The agent's only view of the warehouse: the same public API the console uses. No database access,
-    no private endpoints, and exactly one write path (create_proposal), which needs human approval.
+    no private endpoints, and exactly one write path (create_proposal), which needs human approval. It
+    authenticates with its own token, which wms-core only lets read and propose (ADR 0027).
     """
 
-    def __init__(
-        self, base_url: str, *, passcode: str = "", agent_id: str = "ops-agent", timeout: float = 30.0
-    ):
+    def __init__(self, base_url: str, *, token: str, timeout: float = 30.0):
         self._client = httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout)
-        self._passcode = passcode
-        self._agent_id = agent_id
+        self._token = token
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -51,6 +49,14 @@ class WmsClient:
     async def sku_availability(self, sku: str) -> dict[str, Any]:
         return await self._get(f"/api/v1/skus/{sku}/availability")
 
+    async def open_proposals(self, wave: int) -> list[dict[str, Any]]:
+        """Proposals for this wave still waiting on a supervisor, in compact form."""
+        page = await self._get("/api/v1/proposals", params={"wave": wave, "status": "PROPOSED", "limit": 20})
+        return [
+            {"id": item["id"], "kind": item["kind"], "payload": item["payload"]}
+            for item in page.get("items", [])
+        ]
+
     async def create_proposal(self, body: dict[str, Any]) -> dict[str, Any]:
         return await self._post("/api/v1/proposals", body)
 
@@ -61,12 +67,11 @@ class WmsClient:
         headers = self._headers() | {
             # Every command needs a unique key (ADR 0007); a retry replays rather than repeats.
             "Idempotency-Key": str(uuid.uuid4()),
-            "X-Agent-Id": self._agent_id,
         }
         return self._result(await self._client.post(path, json=body, headers=headers))
 
     def _headers(self) -> dict[str, str]:
-        return {"X-Demo-Passcode": self._passcode} if self._passcode else {}
+        return {"Authorization": f"Bearer {self._token}"}
 
     @staticmethod
     def _result(response: httpx.Response) -> dict[str, Any]:

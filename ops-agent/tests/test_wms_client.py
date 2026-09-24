@@ -8,12 +8,12 @@ from ops_agent.wms import WmsClient, WmsError
 
 
 def client_for(handler) -> WmsClient:
-    wms = WmsClient("http://wms.test", passcode="open-sesame")
+    wms = WmsClient("http://wms.test", token="agent-token-123")
     wms._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://wms.test")
     return wms
 
 
-async def test_commands_carry_an_idempotency_key_and_the_agent_identity():
+async def test_commands_carry_an_idempotency_key_and_the_agents_own_credential():
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -24,8 +24,9 @@ async def test_commands_carry_an_idempotency_key_and_the_agent_identity():
     await wms.create_proposal({"kind": "REASSIGN_TASK"})
 
     assert seen[0].headers["Idempotency-Key"]
-    assert seen[0].headers["X-Agent-Id"] == "ops-agent"
-    assert seen[0].headers["X-Demo-Passcode"] == "open-sesame"
+    # Who is proposing comes from the token wms-core checks, not from a header the agent fills in.
+    assert seen[0].headers["Authorization"] == "Bearer agent-token-123"
+    assert "X-Agent-Id" not in seen[0].headers
     await wms.aclose()
 
 

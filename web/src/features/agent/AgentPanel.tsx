@@ -12,8 +12,8 @@ import {
 import { formatTime } from '@/lib/format'
 
 /**
- * The agent explains the diagnosis and can suggest one fix. It never changes the warehouse: approving
- * a proposal is what runs the command, and that happens in wms-core (ADR 0024).
+ * The agent explains the diagnosis and can suggest fixes, one per blocked task. It never changes the
+ * warehouse: approving a proposal is what runs the command, and that happens in wms-core (ADR 0024, 0027).
  */
 export function AgentPanel({ wave }: { wave: number }) {
   const investigate = useInvestigate(wave)
@@ -49,11 +49,13 @@ export function AgentPanel({ wave }: { wave: number }) {
               {investigate.data.usage.model} · {investigate.data.toolCalls.length} tool calls ·{' '}
               {investigate.data.usage.costUsd.toFixed(4)} USD
             </p>
-            {investigate.data.proposal?.error && (
-              <p className="text-xs text-destructive">
-                The agent's proposal was rejected by the WMS: {investigate.data.proposal.error}
-              </p>
-            )}
+            {investigate.data.proposals
+              .filter((proposal) => 'error' in proposal)
+              .map((refused) => (
+                <p key={refused.payload.task} className="text-xs text-destructive">
+                  The WMS refused a proposal for task {refused.payload.task}: {refused.error}
+                </p>
+              ))}
           </div>
         )}
 

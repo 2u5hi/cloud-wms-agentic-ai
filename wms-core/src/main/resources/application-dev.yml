@@ -1,0 +1,5 @@
+# Local development only. The deployed demo runs the `demo` profile, which has no defaults here.
+wms:
+  auth:
+    supervisor-passcode: ${DEMO_PASSCODE:dev-supervisor}
+    agent-token: ${AGENT_TOKEN:dev-agent-token}

@@ -19,6 +19,8 @@ public enum ErrorCode {
 	NOT_ELIGIBLE("Not eligible for this work"),
 	IDEMPOTENCY_KEY_REUSED("Idempotency key reused with a different request"),
 	CONCURRENCY_CONFLICT("Concurrent update conflict; retry the request"),
+	UNAUTHENTICATED("Authentication required"),
+	FORBIDDEN("Not allowed for this role"),
 	INTERNAL_ERROR("Internal error");
 
 	private final String title;

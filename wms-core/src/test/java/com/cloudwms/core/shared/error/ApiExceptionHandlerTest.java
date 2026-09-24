@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DeadlockLoserDataAccessException;
@@ -25,7 +26,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+// Error mapping only; access rules are covered by SecurityApiTest against the real filter chain.
 @WebMvcTest(controllers = ApiExceptionHandlerTest.ErrorTriggerController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(ApiExceptionHandlerTest.ErrorTriggerController.class)
 class ApiExceptionHandlerTest {
 

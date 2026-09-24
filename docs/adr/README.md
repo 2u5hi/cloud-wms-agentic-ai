@@ -30,3 +30,5 @@ One file per decision: the context, what was decided, where it lives in the code
 | [0024](0024-agent-proposes-wms-executes.md) | The agent reads the public API and proposes; approval runs the command in the WMS | Agent |
 | [0025](0025-demo-scenario-through-real-services.md) | The demo's blocked wave is produced by the real planner, not inserted | Tooling |
 | [0026](0026-aws-deployment.md) | Deploy on AWS, described in Terraform; replaces Railway and the Google Cloud target | Platform |
+| [0027](0027-roles-for-public-agent-supervisor.md) | Anyone reads, the agent's token only proposes, the supervisor passcode runs commands; proposals checked when made | Security |
+| [0028](0028-claude-via-workload-identity.md) | The agent reaches Claude through AWS workload identity federation; no API key exists | Security |

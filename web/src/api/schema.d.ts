@@ -178,6 +178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who am I
+         * @description The actor and role behind the request's credential. Without one, the caller is anonymous and can only read; with an unrecognised one, the request is refused with 401.
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders": {
         parameters: {
             query?: never;
@@ -227,7 +247,7 @@ export interface paths {
         put?: never;
         /**
          * Suggest a fix
-         * @description Records what should be done and why. Nothing changes in the warehouse until somebody approves it.
+         * @description Records what should be done and why. Nothing changes in the warehouse until somebody approves it. The proposal is checked against the warehouse now: a task that is finished, not in the wave, or a worker who is not certified is refused.
          */
         post: operations["createProposal"];
         delete?: never;
@@ -745,6 +765,16 @@ export interface components {
             /** @enum {string} */
             type: "FORWARD_PICK" | "RESERVE" | "STAGING" | "PACK" | "DOCK";
             zone: string;
+        };
+        MeView: {
+            id: string;
+            /**
+             * @description Null when anonymous
+             * @enum {string|null}
+             */
+            role?: "SUPERVISOR" | "AGENT" | null;
+            /** @enum {string} */
+            type: "HUMAN" | "AGENT" | "SYSTEM" | "INTEGRATION";
         };
         MoveRequest: {
             fromLocation: string;
@@ -1381,6 +1411,26 @@ export interface operations {
             };
         };
     };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MeView"];
+                };
+            };
+        };
+    };
     listOrders: {
         parameters: {
             query?: {
@@ -1457,7 +1507,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                "X-Agent-Id"?: string;
                 /** @description Unique per logical request. Retrying with the same key returns the original response instead of repeating the command. */
                 "Idempotency-Key": string;
             };

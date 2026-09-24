@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from ops_agent.config import Settings
+from ops_agent.wms import WmsError
 
 BLOCKED_DIAGNOSIS = {
     "wave": 7,
@@ -55,6 +56,8 @@ class FakeWms:
 
     diagnosis_response: dict[str, Any] = field(default_factory=lambda: dict(BLOCKED_DIAGNOSIS))
     proposals: list[dict[str, Any]] = field(default_factory=list)
+    open: list[dict[str, Any]] = field(default_factory=list)
+    refuse_tasks: set[int] = field(default_factory=set)
     calls: list[str] = field(default_factory=list)
 
     async def diagnosis(self, wave: int) -> dict[str, Any]:
@@ -77,8 +80,14 @@ class FakeWms:
         self.calls.append(f"availability({sku})")
         return {"sku": sku, "total": {"onHand": 30, "allocated": 30, "available": 0}}
 
+    async def open_proposals(self, wave: int) -> list[dict[str, Any]]:
+        self.calls.append(f"open_proposals({wave})")
+        return self.open
+
     async def create_proposal(self, body: dict[str, Any]) -> dict[str, Any]:
         self.calls.append("create_proposal")
+        if body["payload"]["task"] in self.refuse_tasks:
+            raise WmsError("Worker W-020 is not certified for REACH_TRUCK", 409, "NOT_ELIGIBLE")
         self.proposals.append(body)
         return {"id": 1, "status": "PROPOSED", **body}
 

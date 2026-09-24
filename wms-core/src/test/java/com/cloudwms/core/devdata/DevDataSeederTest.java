@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.cloudwms.core.IntegrationTest;
+import com.cloudwms.core.TestCredentials;
 import com.cloudwms.core.inventory.InventoryService;
 import com.cloudwms.core.orders.OrderService;
 import com.cloudwms.core.waves.WavePlanningService;
@@ -85,7 +86,7 @@ class DevDataSeederTest {
 		List<Integer> replenishments = JsonPath.read(diagnosis, blocked + ".replenishment.taskId");
 		for (int task : replenishments) {
 			String proposal = mockMvc
-				.perform(command("/api/v1/proposals").header("X-Agent-Id", "ops-agent")
+				.perform(command("/api/v1/proposals").header("Authorization", TestCredentials.AGENT)
 					.contentType(MediaType.APPLICATION_JSON)
 					.content("""
 							{"kind": "REASSIGN_TASK", "wave": %d, "payload": {"task": %d, "worker": "%s"},

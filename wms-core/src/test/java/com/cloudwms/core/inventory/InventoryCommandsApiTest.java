@@ -59,7 +59,8 @@ class InventoryCommandsApiTest {
 			.andExpect(jsonPath("$.transaction.reference.type").value("PO"))
 			.andExpect(jsonPath("$.transaction.reference.id").value("PO-1001"))
 			.andExpect(jsonPath("$.transaction.actor.type").value("HUMAN"))
-			.andExpect(jsonPath("$.transaction.actor.id").value("unauthenticated"))
+			// The ledger records who the credential belongs to (ADR 0027).
+			.andExpect(jsonPath("$.transaction.actor.id").value("demo-supervisor"))
 			.andExpect(jsonPath("$.transaction.occurredAt").isNotEmpty())
 			.andExpect(jsonPath("$.balances.length()").value(1))
 			.andExpect(jsonPath("$.balances[0].location").value(reserve))

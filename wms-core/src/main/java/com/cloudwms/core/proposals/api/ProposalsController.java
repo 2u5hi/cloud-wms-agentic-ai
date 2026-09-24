@@ -9,8 +9,6 @@ import com.cloudwms.core.proposals.ProposalService.NewProposal;
 import com.cloudwms.core.proposals.api.ProposalViews.CreateProposalRequest;
 import com.cloudwms.core.proposals.api.ProposalViews.DecisionRequest;
 import com.cloudwms.core.proposals.api.ProposalViews.ProposalView;
-import com.cloudwms.core.shared.actor.Actor;
-import com.cloudwms.core.shared.actor.ActorType;
 import com.cloudwms.core.shared.actor.CurrentActor;
 import com.cloudwms.core.shared.api.Cursor;
 import com.cloudwms.core.shared.api.Page;
@@ -27,7 +25,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -50,13 +47,12 @@ class ProposalsController {
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(operationId = "createProposal", summary = "Suggest a fix",
 			description = "Records what should be done and why. Nothing changes in the warehouse until "
-					+ "somebody approves it.")
-	ResponseEntity<ProposalView> create(@Valid @RequestBody CreateProposalRequest request,
-			@RequestHeader(name = "X-Agent-Id", required = false) String agentId) {
-		long id = proposals.propose(
-				new NewProposal(request.kind(), request.wave(), request.payload(), request.rationale(),
-						request.evidence()),
-				agentId == null ? actor.get() : new Actor(ActorType.AGENT, agentId));
+					+ "somebody approves it. The proposal is checked against the warehouse now: a task that is "
+					+ "finished, not in the wave, or a worker who is not certified is refused.")
+	ResponseEntity<ProposalView> create(@Valid @RequestBody CreateProposalRequest request) {
+		// Who proposed comes from the credential, not from anything the caller says about itself (ADR 0027).
+		long id = proposals.propose(new NewProposal(request.kind(), request.wave(), request.payload(),
+				request.rationale(), request.evidence()), actor.get());
 		return ResponseEntity.created(URI.create("/api/v1/proposals/" + id)).body(ProposalView.of(row(id)));
 	}
 

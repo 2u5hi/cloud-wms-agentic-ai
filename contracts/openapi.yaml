@@ -19,6 +19,8 @@ tags:
   name: Orders
 - description: Fixes the agent suggests and a human approves
   name: Proposals
+- description: Who the current credential belongs to
+  name: Session
 - description: "Zones, locations, and SKUs"
   name: Master data
 paths:
@@ -52,6 +54,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrderImportResponse"
           description: OK
+      security:
+      - bearer: []
       summary: Import a batch of orders
       tags:
       - Host integration
@@ -145,6 +149,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/MovementResultView"
           description: Created
+      security:
+      - bearer: []
       summary: Correct stock at a location
       tags:
       - Inventory
@@ -176,6 +182,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/MovementResultView"
           description: Created
+      security:
+      - bearer: []
       summary: Move stock between locations
       tags:
       - Inventory
@@ -205,6 +213,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/MovementResultView"
           description: Created
+      security:
+      - bearer: []
       summary: Receive stock into a location
       tags:
       - Inventory
@@ -343,6 +353,22 @@ paths:
       summary: Get a location
       tags:
       - Master data
+  /api/v1/me:
+    get:
+      description: "The actor and role behind the request's credential. Without one,\
+        \ the caller is anonymous and can only read; with an unrecognised one, the\
+        \ request is refused with 401."
+      operationId: getMe
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MeView"
+          description: OK
+      summary: Who am I
+      tags:
+      - Session
   /api/v1/orders:
     get:
       description: In the order they were received.
@@ -450,15 +476,12 @@ paths:
       tags:
       - Proposals
     post:
-      description: Records what should be done and why. Nothing changes in the warehouse
-        until somebody approves it.
+      description: "Records what should be done and why. Nothing changes in the warehouse\
+        \ until somebody approves it. The proposal is checked against the warehouse\
+        \ now: a task that is finished, not in the wave, or a worker who is not certified\
+        \ is refused."
       operationId: createProposal
       parameters:
-      - in: header
-        name: X-Agent-Id
-        required: false
-        schema:
-          type: string
       - description: Unique per logical request. Retrying with the same key returns
           the original response instead of repeating the command.
         in: header
@@ -481,6 +504,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProposalView"
           description: Created
+      security:
+      - bearer: []
       summary: Suggest a fix
       tags:
       - Proposals
@@ -537,6 +562,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProposalView"
           description: OK
+      security:
+      - bearer: []
       summary: Approve and run a proposal
       tags:
       - Proposals
@@ -571,6 +598,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProposalView"
           description: OK
+      security:
+      - bearer: []
       summary: Reject a proposal
       tags:
       - Proposals
@@ -740,6 +769,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/TaskView"
           description: OK
+      security:
+      - bearer: []
       summary: Complete a task
       tags:
       - Tasks
@@ -775,6 +806,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/TaskView"
           description: OK
+      security:
+      - bearer: []
       summary: Give a task to another worker
       tags:
       - Tasks
@@ -845,6 +878,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlanResultView"
           description: OK
+      security:
+      - bearer: []
       summary: Plan a wave
       tags:
       - Waves
@@ -896,6 +931,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/WaveView"
           description: OK
+      security:
+      - bearer: []
       summary: Cancel a planned wave
       tags:
       - Waves
@@ -957,6 +994,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/WaveView"
           description: OK
+      security:
+      - bearer: []
       summary: Release a wave to the floor
       tags:
       - Waves
@@ -1015,6 +1054,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkerView"
           description: Created
+      security:
+      - bearer: []
       summary: Add a worker
       tags:
       - Tasks
@@ -1071,6 +1112,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/TaskView"
           description: OK
+      security:
+      - bearer: []
       summary: Claim the next task for a worker
       tags:
       - Tasks
@@ -1456,6 +1499,29 @@ components:
       - code
       - type
       - zone
+    MeView:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type:
+          - string
+          - "null"
+          description: Null when anonymous
+          enum:
+          - SUPERVISOR
+          - AGENT
+        type:
+          type: string
+          enum:
+          - HUMAN
+          - AGENT
+          - SYSTEM
+          - INTEGRATION
+      required:
+      - id
+      - type
     MoveRequest:
       type: object
       properties:
@@ -2441,3 +2507,9 @@ components:
       required:
       - code
       - name
+  securitySchemes:
+    bearer:
+      description: "The supervisor passcode, or the agent's service token (ADR 0027).\
+        \ Reads need none."
+      scheme: bearer
+      type: http

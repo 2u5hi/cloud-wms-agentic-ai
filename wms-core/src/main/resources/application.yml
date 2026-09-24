@@ -36,3 +36,9 @@ management:
       show-components: always
       probes:
         enabled: true
+
+wms:
+  auth:
+    # Required; the service will not start without them (ADR 0027). Set from secrets when deployed.
+    supervisor-passcode: ${DEMO_PASSCODE:}
+    agent-token: ${AGENT_TOKEN:}

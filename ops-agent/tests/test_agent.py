@@ -40,12 +40,14 @@ async def test_a_reassignment_is_stored_as_a_proposal_not_executed(settings):
                             "diagnosis: task 5 needs REACH_TRUCK",
                             "workers: W-014 certified, BREAK",
                         ],
-                        "proposal": {
-                            "kind": "REASSIGN_TASK",
-                            "task": 5,
-                            "worker": "W-014",
-                            "rationale": "Ana is the only certified driver",
-                        },
+                        "proposals": [
+                            {
+                                "kind": "REASSIGN_TASK",
+                                "task": 5,
+                                "worker": "W-014",
+                                "rationale": "Ana is the only certified driver",
+                            }
+                        ],
                     },
                 )
             ],
@@ -64,7 +66,7 @@ async def test_a_reassignment_is_stored_as_a_proposal_not_executed(settings):
             "evidence": ["diagnosis: task 5 needs REACH_TRUCK", "workers: W-014 certified, BREAK"],
         }
     ]
-    assert result.proposal["status"] == "PROPOSED"
+    assert result.proposals[0]["status"] == "PROPOSED"
     # Nothing on the floor was touched: the only write was the proposal itself.
     assert [call for call in wms.calls if call.startswith("create") or "reassign" in call] == [
         "create_proposal"
@@ -79,7 +81,7 @@ async def test_a_report_without_a_proposal_is_an_explanation_only(settings):
 
     result = await agent(client, wms, settings).investigate(7)
 
-    assert result.proposal is None
+    assert result.proposals == []
     assert wms.proposals == []
 
 
@@ -144,3 +146,66 @@ async def test_the_next_investigation_is_refused_once_the_budget_is_spent(settin
 
     with pytest.raises(BudgetExceeded):
         await agent_under_test.investigate(7)
+
+
+def reassign(task: int, worker: str) -> dict:
+    return {"kind": "REASSIGN_TASK", "task": task, "worker": worker, "rationale": f"{worker} can do it"}
+
+
+async def test_each_blocked_task_gets_its_own_proposal(settings):
+    """The first live run fixed one of two stuck replenishments and claimed it freed both picks."""
+    wms = FakeWms()
+    client = FakeAnthropic(
+        [
+            [
+                tool_use(
+                    "report",
+                    {
+                        "answer": "Two replenishments need a reach truck.",
+                        "evidence": ["diagnosis"],
+                        "proposals": [reassign(2, "W-014"), reassign(5, "W-014")],
+                    },
+                )
+            ]
+        ]
+    )
+
+    result = await agent(client, wms, settings).investigate(7)
+
+    assert [proposal["payload"]["task"] for proposal in wms.proposals] == [2, 5]
+    assert len(result.proposals) == 2
+
+
+async def test_a_proposal_the_wms_refuses_is_reported_not_dropped(settings):
+    wms = FakeWms(refuse_tasks={5})
+    client = FakeAnthropic(
+        [
+            [
+                tool_use(
+                    "report",
+                    {
+                        "answer": "Blocked.",
+                        "evidence": ["diagnosis"],
+                        "proposals": [reassign(2, "W-014"), reassign(5, "W-020")],
+                    },
+                )
+            ]
+        ]
+    )
+
+    result = await agent(client, wms, settings).investigate(7)
+
+    assert result.proposals[0]["status"] == "PROPOSED"
+    assert result.proposals[1]["code"] == "NOT_ELIGIBLE"
+    assert result.proposals[1]["payload"] == {"task": 5, "worker": "W-020"}
+
+
+async def test_open_proposals_are_shown_so_they_are_not_proposed_again(settings):
+    wms = FakeWms(open=[{"id": 1, "kind": "REASSIGN_TASK", "payload": {"task": 2, "worker": "W-014"}}])
+    client = FakeAnthropic([[tool_use("report", {"answer": "Blocked.", "evidence": ["diagnosis"]})]])
+
+    await agent(client, wms, settings).investigate(7)
+
+    prompt = client.messages.requests[0]["messages"][0]["content"]
+    assert "Open proposals awaiting a decision" in prompt
+    assert '"task": 2' in prompt

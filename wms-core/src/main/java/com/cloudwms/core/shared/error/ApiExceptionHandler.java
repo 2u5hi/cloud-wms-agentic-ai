@@ -178,6 +178,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			case NOT_ELIGIBLE -> HttpStatus.CONFLICT;
 			case IDEMPOTENCY_KEY_REUSED -> HttpStatus.UNPROCESSABLE_CONTENT;
 			case CONCURRENCY_CONFLICT -> HttpStatus.SERVICE_UNAVAILABLE;
+			case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
+			case FORBIDDEN -> HttpStatus.FORBIDDEN;
 			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
 		};
 	}
